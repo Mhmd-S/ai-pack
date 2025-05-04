@@ -1,56 +1,35 @@
 // app/login/page.tsx
 'use client';
-import { FormEvent, useState } from 'react';
-import { signIn } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { Card, CardContent } from '@/components/ui/card';
+import { useActionState } from 'react';
+
+import { login } from '@/actions/auth';
+
 import { Input } from '@/components/ui/input';
+import { AlertDescription } from '@/components/ui/alert';
+import { Alert } from '@/components/ui/alert';
+import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { toast } from 'sonner';
 
 export default function LoginPage() {
-	const [email, setEmail] = useState('');
-	const [password, setPassword] = useState('');
-
-	const [error, setError] = useState('');
-
-	const [isLoading, setIsLoading] = useState(false);
-
-	const router = useRouter();
-
-	const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-		event.preventDefault();
-		const formData = new FormData(event.currentTarget);
-		const res = await signIn('credentials', {
-			email: formData.get('email'),
-			password: formData.get('password'),
-			redirect: false,
-		});
-		if (res?.error) {
-			setError(res.error as string);
-		}
-		if (res?.ok) {
-			return router.push('/');
-		}
-	};
+	const [state, action, pending] = useActionState(login, undefined);
 
 	return (
-		<Card className="overflow-hidden">
+		<Card className="overflow-hidden w-lg md:w-xl lg:w-2xl">
 			<CardContent className="grid p-0 md:grid-cols-2">
-				<form onSubmit={handleSubmit} className="p-6 md:p-8">
+				<form action={action} className="p-6 md:p-8">
 					<div className="flex flex-col gap-6">
 						<div className="flex flex-col items-center text-center">
 							<h1 className="text-2xl font-bold">Welcome back</h1>
 							<p className="text-balance text-muted-foreground">
-								Login to your account
+								Enter your details to login to your account
 							</p>
 						</div>
-						{error && (
+						{state?.error && (
 							<Alert variant="destructive">
-								<AlertDescription>{error}</AlertDescription>
+								<AlertDescription>
+									{state.error}
+								</AlertDescription>
 							</Alert>
 						)}
 						<div className="grid gap-2">
@@ -59,12 +38,16 @@ export default function LoginPage() {
 								id="email"
 								type="email"
 								placeholder="m@example.com"
-								value={email}
-								onChange={(e) => setEmail(e.target.value)}
+								name="email"
 								required
 								autoComplete="email"
-								disabled={isLoading}
+								disabled={pending}
 							/>
+							{state?.errors?.email && (
+								<p className="text-red-500">
+									{state.errors.email}
+								</p>
+							)}
 						</div>
 						<div className="grid gap-2">
 							<div className="flex items-center">
@@ -79,45 +62,23 @@ export default function LoginPage() {
 							<Input
 								id="password"
 								type="password"
-								value={password}
-								onChange={(e) => setPassword(e.target.value)}
+								name="password"
 								required
 								autoComplete="current-password"
-								disabled={isLoading}
+								disabled={pending}
 							/>
+							{state?.errors?.password && (
+								<p className="text-red-500">
+									{state.errors.password}
+								</p>
+							)}
 						</div>
 						<Button
 							type="submit"
 							className="w-full"
-							disabled={isLoading}
+							disabled={pending}
 						>
-							{isLoading ? (
-								<>
-									<svg
-										className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
-										xmlns="http://www.w3.org/2000/svg"
-										fill="none"
-										viewBox="0 0 24 24"
-									>
-										<circle
-											className="opacity-25"
-											cx="12"
-											cy="12"
-											r="10"
-											stroke="currentColor"
-											strokeWidth="4"
-										></circle>
-										<path
-											className="opacity-75"
-											fill="currentColor"
-											d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-										></path>
-									</svg>
-									Logging in...
-								</>
-							) : (
-								'Login'
-							)}
+							{pending ? 'Logging in...' : 'Login'}
 						</Button>
 						<div className="relative text-center text-sm after:absolute after:inset-0 after:top-1/2 after:z-0 after:flex after:items-center after:border-t after:border-border">
 							<span className="relative z-10 bg-background px-2 text-muted-foreground">
@@ -128,7 +89,7 @@ export default function LoginPage() {
 							<Button
 								variant="outline"
 								className="w-full"
-								disabled={isLoading}
+								disabled={pending}
 							>
 								<svg
 									xmlns="http://www.w3.org/2000/svg"
@@ -146,7 +107,7 @@ export default function LoginPage() {
 							<Button
 								variant="outline"
 								className="w-full"
-								disabled={isLoading}
+								disabled={pending}
 							>
 								<svg
 									xmlns="http://www.w3.org/2000/svg"
@@ -164,7 +125,7 @@ export default function LoginPage() {
 							<Button
 								variant="outline"
 								className="w-full"
-								disabled={isLoading}
+								disabled={pending}
 							>
 								<svg
 									xmlns="http://www.w3.org/2000/svg"

@@ -1,15 +1,14 @@
-import { getServerSession } from "next-auth";
-import { redirect } from "next/navigation";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { getCurrentUserDto } from '@/lib/data/dto/user-dto';
 
-export default async function DashboardPage() {
-  const session = await getServerSession(authOptions);
-  if (!session) redirect("/login");
+const DashboardPage = async () => {
+	const user = await getCurrentUserDto();
 
-  return (
-    <div>
-      <h2 className="text-2xl font-bold mb-4">Dashboard</h2>
-      <p>Welcome, {session.user?.email}!</p>
-    </div>
-  );
-}
+	return (
+		<div>
+			<h2 className="text-2xl font-bold mb-4">Dashboard</h2>
+			<p>Welcome, {user?.email}!</p>
+		</div>
+	);
+};
+
+export default DashboardPage;

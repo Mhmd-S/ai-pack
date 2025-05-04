@@ -1,9 +1,9 @@
 // app/register/page.tsx
 'use client';
-import { useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { register } from '@/actions/register';
+import { useActionState } from 'react';
+
+import { register } from '@/actions/auth';
+
 import { Input } from '@/components/ui/input';
 import { AlertDescription } from '@/components/ui/alert';
 import { Alert } from '@/components/ui/alert';
@@ -12,34 +12,12 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 
 export default function RegisterPage() {
-	const [error, setError] = useState<string>();
-	const router = useRouter();
-	const ref = useRef<HTMLFormElement>(null);
-
-	const handleSubmit = async (formData: FormData) => {
-		const r = await register({
-			email: formData.get('email') as string,
-			password: formData.get('password') as string,
-			name: formData.get('name') as string,
-		});
-		ref.current?.reset();
-		if (r?.error) {
-			setError(r.error);
-			return;
-		} else {
-			return router.push('/login');
-		}
-	};
+	const [state, action, pending] = useActionState(register, undefined);
 
 	return (
-		<Card className="overflow-hidden">
+		<Card className="overflow-hidden w-lg md:w-xl lg:w-2xl">
 			<CardContent className="grid p-0 md:grid-cols-2">
-				<form ref={ref} action={handleSubmit} className="p-6 md:p-8">
-					{error && (
-						<Alert variant="destructive">
-							<AlertDescription>{error}</AlertDescription>
-						</Alert>
-					)}
+				<form action={action} className="p-6 md:p-8">
 					<div className="flex flex-col gap-6">
 						<div className="flex flex-col items-center text-center">
 							<h1 className="text-2xl font-bold">
@@ -49,9 +27,11 @@ export default function RegisterPage() {
 								Enter your details below to create your account
 							</p>
 						</div>
-						{error && (
+						{state?.error && (
 							<Alert variant="destructive">
-								<AlertDescription>{error}</AlertDescription>
+								<AlertDescription>
+									{state.error}
+								</AlertDescription>
 							</Alert>
 						)}
 						<div className="grid gap-2">
@@ -60,9 +40,15 @@ export default function RegisterPage() {
 								id="email"
 								type="email"
 								placeholder="m@example.com"
+								name="email"
 								required
 								autoComplete="email"
 							/>
+							{state?.errors?.email && (
+								<p className="text-red-500">
+									{state.errors.email}
+								</p>
+							)}
 						</div>
 						<div className="grid gap-2">
 							<Label htmlFor="password">Password</Label>
@@ -71,10 +57,16 @@ export default function RegisterPage() {
 								type="password"
 								required
 								autoComplete="new-password"
+								name="password"
 							/>
+							{state?.errors?.password && (
+								<p className="text-red-500">
+									{state.errors.password}
+								</p>
+							)}
 						</div>
 						<Button type="submit" className="w-full">
-							Create account
+							{pending ? 'Creating...' : 'Create account'}
 						</Button>
 						<div className="relative text-center text-sm after:absolute after:inset-0 after:top-1/2 after:z-0 after:flex after:items-center after:border-t after:border-border">
 							<span className="relative z-10 bg-background px-2 text-muted-foreground">
@@ -96,10 +88,7 @@ export default function RegisterPage() {
 									Sign up with Apple
 								</span>
 							</Button>
-							<Button
-								variant="outline"
-								className="w-full"
-							>
+							<Button variant="outline" className="w-full">
 								<svg
 									xmlns="http://www.w3.org/2000/svg"
 									viewBox="0 0 24 24"
@@ -113,10 +102,7 @@ export default function RegisterPage() {
 									Sign up with Google
 								</span>
 							</Button>
-							<Button
-								variant="outline"
-								className="w-full"
-							>
+							<Button variant="outline" className="w-full">
 								<svg
 									xmlns="http://www.w3.org/2000/svg"
 									viewBox="0 0 24 24"
