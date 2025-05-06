@@ -1,0 +1,31 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+- Use Data Access Layer (DAL) for data retrieval operations
+- Use Data Operations Layer (DOL) for data manipulation operations
+- Place data-related files in appropriate directories:
+  - DAL files in `src/lib/data/dal/`
+  - DTO files in `src/lib/data/dto/`
+  - Actions in `src/actions/`
+- Server actions must be marked with 'use server' directive
+- Each action file should be focused on a specific domain
+
+Example DAL:
+```ts
+// src/lib/data/dal/user.ts
+export const getUserById = async (id: string) => {
+  // Implementation
+};
+```
+
+Example Action:
+```ts
+// src/actions/auth.ts
+'use server';
+
+export const login = async (credentials: LoginCredentials) => {
+  // Implementation
+};
+```

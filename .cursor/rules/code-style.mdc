@@ -1,0 +1,42 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+- Use 2 spaces for indentation
+- Use semicolons
+- Use single quotes for strings
+- Use arrow functions for components
+- Use async/await for asynchronous operations
+- Implement proper error boundaries
+- Use proper loading states
+- Implement proper form validation
+- Use proper authentication and authorization
+- Implement proper data fetching patterns
+
+Example of proper formatting:
+```tsx
+const UserProfile = () => {
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  const fetchUser = async () => {
+    try {
+      setIsLoading(true);
+      const user = await getUserById('123');
+      // Handle success
+    } catch (err) {
+      setError(err as Error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (isLoading) return <LoadingSpinner />;
+  if (error) return <ErrorBoundary error={error} />;
+
+  return <div>User Profile Content</div>;
+};
+
+export default UserProfile;
+```

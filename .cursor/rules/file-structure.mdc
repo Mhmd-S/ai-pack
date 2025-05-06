@@ -1,0 +1,25 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+- Follow the standard project structure:
+```
+src/
+├── app/
+│   ├── (private)/     # Protected routes requiring authentication
+│   └── (public)/      # Public routes
+├── actions/           # Server actions
+├── lib/
+│   ├── data/         # Data layer
+│   │   ├── dal/      # Data Access Layer
+│   │   └── dto/      # Data Transfer Objects
+│   ├── definitions/  # TypeScript definitions
+│   └── models/       # Database models
+└── components/       # React components
+```
+
+- Place components in appropriate directories based on their scope
+- Keep related files together in feature-based directories
+- Use clear, descriptive names for directories and files
+- Follow the naming conventions for each file type

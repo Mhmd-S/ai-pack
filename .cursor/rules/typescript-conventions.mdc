@@ -1,0 +1,28 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+- Use TypeScript for all files
+- Define interfaces and types in `src/lib/definitions/`
+- Use strict type checking
+- Prefer type inference where possible
+- Use proper naming conventions:
+  - Types/Interfaces: PascalCase
+  - Functions: camelCase
+  - Constants: UPPER_SNAKE_CASE
+- Use proper error handling with try/catch blocks
+- Use async/await for asynchronous operations
+
+Example type definition:
+```ts
+// src/lib/definitions/user.ts
+export interface User {
+  id: string;
+  email: string;
+  createdAt: Date;
+}
+
+export type UserRole = 'admin' | 'user' | 'guest';
+```
+

@@ -1,0 +1,24 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+- React components must be created using anonymous functions
+- Component file names must use PascalCase (e.g., UserProfile.tsx)
+- Components must be default exported at the end of the file
+- Use arrow function syntax for components
+- Keep components small and focused
+- Use composition over inheritance
+
+Example:
+```tsx
+const UserProfile = () => {
+  return (
+    <div>
+      {/* Component content */}
+    </div>
+  );
+};
+
+export default UserProfile;
+```
