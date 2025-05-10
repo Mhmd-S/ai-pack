@@ -33,3 +33,46 @@ export async function uploadToS3(file: File, userId: string): Promise<string> {
 	// Return the URL to the uploaded file
 	return `https://${process.env.S3_BUCKET_NAME}.s3.amazonaws.com/${fileName}`;
 }
+
+export async function uploadFromCDN(
+	cdnUrl: string,
+	userId: string
+): Promise<string> {
+	try {
+		// Fetch the image from CDN
+		const response = await fetch(cdnUrl);
+		if (!response.ok) {
+			throw new Error(
+				`Failed to fetch image from CDN: ${response.statusText}`
+			);
+		}
+
+		// Get the image data as ArrayBuffer
+		const arrayBuffer = await response.arrayBuffer();
+		const buffer = Buffer.from(arrayBuffer);
+
+		// Get content type from response headers
+		const contentType =
+			response.headers.get('content-type') || 'image/jpeg';
+
+		// Generate a unique file name
+		const fileExt = cdnUrl.split('.').pop() || 'jpg';
+		const fileName = `${userId}/${uuidv4()}.${fileExt}`;
+
+		// Upload to S3
+		const params = {
+			Bucket: process.env.S3_BUCKET_NAME,
+			Key: fileName,
+			Body: buffer,
+			ContentType: contentType,
+		};
+
+		await s3Client.send(new PutObjectCommand(params));
+
+		// Return the URL to the uploaded file
+		return `https://${process.env.S3_BUCKET_NAME}.s3.amazonaws.com/${fileName}`;
+	} catch (error) {
+		console.error('Error uploading from CDN:', error);
+		throw error;
+	}
+}

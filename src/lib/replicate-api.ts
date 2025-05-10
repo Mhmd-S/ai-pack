@@ -1,4 +1,5 @@
 import Replicate from 'replicate';
+import { getWebhookSecret } from '@/lib/webhook/webhook-secret';
 
 // Types for the API responses
 export interface PredictionResponse {
@@ -13,7 +14,7 @@ export interface PredictionResponse {
 	completed_at: string | null;
 	status: 'starting' | 'processing' | 'succeeded' | 'failed' | 'canceled';
 	input: Record<string, unknown>;
-	output: unknown;
+	output: string[] | null; // For Recraft, output is an array of image URLs
 	error: string | null;
 	logs: string | null;
 	metrics: {
@@ -21,8 +22,16 @@ export interface PredictionResponse {
 	};
 }
 
+export interface RecraftInput {
+	size: string;
+	style: string;
+	prompt: string;
+	aspect_ratio?: string;
+}
+
 export class ReplicateAPI {
 	private replicate: Replicate;
+	private readonly RECRAFT_MODEL = 'recraft-ai/recraft-v3-svg';
 
 	constructor(apiToken: string) {
 		this.replicate = new Replicate({
@@ -31,24 +40,33 @@ export class ReplicateAPI {
 	}
 
 	/**
-	 * Start a new prediction
-	 * @param modelVersion The model version to use (e.g., "stability-ai/stable-diffusion:27b93a2413e7f36cd83da926f3656280b2931564ff050bf9575f1fdf9bcd7478")
-	 * @param input The input parameters for the model
+	 * Get the webhook secret for verifying webhooks
+	 * @returns Promise<string> The webhook secret
+	 */
+	async getWebhookSecret(): Promise<string> {
+		return getWebhookSecret();
+	}
+
+	/**
+	 * Start a new Recraft SVG generation
+	 * @param input The input parameters for the Recraft model
+	 * @param webhookUrl Webhook URL to receive the prediction results
 	 * @returns Promise<PredictionResponse>
 	 */
-	async createPrediction(
-		modelVersion: string,
-		input: Record<string, unknown>
+	async generateSVG(
+		input: RecraftInput,
+		webhookUrl: string
 	): Promise<PredictionResponse> {
 		try {
 			const prediction = await this.replicate.predictions.create({
-				version: modelVersion,
+				version: this.RECRAFT_MODEL,
 				input,
+				webhook: webhookUrl,
 			});
 			return prediction as PredictionResponse;
 		} catch (error) {
-			console.error('Error creating prediction:', error);
-			throw new Error('Failed to create prediction');
+			console.error('Error creating SVG prediction:', error);
+			throw new Error('Failed to create SVG prediction');
 		}
 	}
 

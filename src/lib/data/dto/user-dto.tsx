@@ -30,7 +30,7 @@ export const getCurrentUserDto = async () => {
 	const currentUser = await getCurrentUser();
 
 	return {
-		id: currentUser._id,
+		id: currentUser._id.toString(),
 		email: currentUser.email,
 	};
 };

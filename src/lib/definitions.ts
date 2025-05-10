@@ -14,19 +14,15 @@ export const SignupFormSchema = z.object({
 });
 
 export const ProjectFormSchema = z.object({
-	name: z.string().min(1, { message: 'Project name is required' }).trim(),
-	primaryColor: z.string().min(1, { message: 'Primary color is required' }),
-	secondaryColor: z.string().default('#ffffff'),
-	foodType: z.enum(['burger', 'fries', 'pizza'], {
-		errorMap: () => ({ message: 'Please select a valid food type' }),
-	}),
-	packagingType: z.enum(['clamshell', 'pizza_box', 'fry_carton'], {
-		errorMap: () => ({ message: 'Please select a valid packaging type' }),
-	}),
-	// We can't fully validate the file with Zod, but we'll check if it's provided
-	logoFile: z.any().refine((val) => val instanceof File && val.size > 0, {
-		message: 'Please upload a logo image',
-	}),
+	name: z.string().min(1, 'Project name is required'),
+	logoFile: z.any().optional(),
+	primaryColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Invalid color format'),
+	secondaryColor: z
+		.string()
+		.regex(/^#[0-9A-Fa-f]{6}$/, 'Invalid color format'),
+	packagingType: z.enum(['clamshell', 'pizza_box', 'fry_carton']),
+	tagLine: z.string().optional(),
+	styleCue: z.string().optional(),
 });
 
 export type FormState =
@@ -39,19 +35,18 @@ export type FormState =
 	  }
 	| undefined;
 
-export type ProjectFormState =
-	| {
-			errors?: {
-				name?: string[];
-				primaryColor?: string[];
-				secondaryColor?: string[];
-				foodType?: string[];
-				packagingType?: string[];
-				logoFile?: string[];
-			};
-			message?: string;
-	  }
-	| undefined;
+export type ProjectFormState = {
+	errors?: {
+		name?: string[];
+		logoFile?: string[];
+		primaryColor?: string[];
+		secondaryColor?: string[];
+		packagingType?: string[];
+		tagLine?: string[];
+		styleCue?: string[];
+	};
+	message?: string;
+};
 
 export type SessionPayload = {
 	userId: string;
@@ -63,3 +58,12 @@ export type User = {
 	username: string;
 	password: string;
 };
+
+export const styles = ['engraving', 'linocut', 'line_art', 'line_circuit'] as const;
+
+export const PACKAGING_TYPES = [
+	{ value: 'clamshell', label: 'Clamshell Box' },
+	{ value: 'pizza_box', label: 'Pizza Box' },
+	{ value: 'fry_carton', label: 'Fry Carton' },
+];
+

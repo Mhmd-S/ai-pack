@@ -1,6 +1,8 @@
 'use client';
 
-import { Plus, Folder, FolderOpen, Home, Settings, Search } from 'lucide-react';
+import { useState, useEffect } from 'react';
+
+import { Plus, Folder, FolderOpen, Search } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
@@ -8,23 +10,85 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { getCurrentUserDto } from '@/lib/data/dto/user-dto';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface Project {
 	id: string;
 	name: string;
 	color?: string;
+	status: 'pending' | 'generating' | 'review' | 'completed' | 'error';
 }
 
-const projects: Project[] = [
-	{ id: '1', name: 'Marketing Website', color: 'bg-rose-500' },
-	{ id: '2', name: 'Mobile App', color: 'bg-blue-500' },
-	{ id: '3', name: 'Dashboard UI', color: 'bg-amber-500' },
-	{ id: '4', name: 'E-commerce Platform', color: 'bg-emerald-500' },
-	{ id: '5', name: 'Analytics Tool', color: 'bg-violet-500' },
-];
+interface User {
+	id: string;
+	email: string;
+}
 
 const AppSidebar = () => {
 	const pathname = usePathname();
+
+	const [loading, setLoading] = useState(true);
+	const [projects, setProjects] = useState<Project[]>([]);
+	const [user, setUser] = useState<User | null>(null);
+
+	useEffect(() => {
+		const fetchData = async () => {
+			try {
+				// Fetch user data
+				const userData = await getCurrentUserDto();
+				setUser(userData);
+
+				// Fetch projects
+				const response = await fetch('/api/projects');
+				const projectsData = await response.json();
+				setProjects(projectsData);
+			} catch (error) {
+				console.error('Error fetching data:', error);
+			} finally {
+				setLoading(false);
+			}
+		};
+
+		fetchData();
+	}, []);
+
+	if (loading) {
+		return (
+			<div className="flex h-full w-64 flex-col border-r bg-white dark:bg-gray-950">
+				{/* Header Section Skeleton */}
+				<div className="flex flex-col space-y-3 p-3 border-b">
+					<div className="flex items-center gap-2">
+						<Skeleton className="h-8 w-8 rounded-full" />
+						<Skeleton className="h-4 w-24" />
+					</div>
+					<Skeleton className="h-9 w-full" />
+					<Skeleton className="h-9 w-full" />
+				</div>
+
+				{/* Projects Section Skeleton */}
+				<div className="flex-1 overflow-y-auto p-3">
+					<Skeleton className="h-4 w-16 mb-2" />
+					<div className="space-y-2">
+						{[...Array(5)].map((_, i) => (
+							<Skeleton key={i} className="h-9 w-full" />
+						))}
+					</div>
+				</div>
+
+				{/* Footer Section Skeleton */}
+				<div className="border-t p-3">
+					<div className="flex items-center gap-3">
+						<Skeleton className="h-9 w-9 rounded-full" />
+						<div className="space-y-2">
+							<Skeleton className="h-4 w-24" />
+							<Skeleton className="h-3 w-32" />
+						</div>
+					</div>
+				</div>
+			</div>
+		);
+	}
 
 	return (
 		<div className="flex h-full w-64 flex-col border-r bg-white dark:bg-gray-950">
@@ -37,16 +101,22 @@ const AppSidebar = () => {
 								src="/placeholder.svg?height=32&width=32"
 								alt="Avatar"
 							/>
-							<AvatarFallback>AC</AvatarFallback>
+							<AvatarFallback>
+								{user?.email?.slice(0, 2).toUpperCase() || 'U'}
+							</AvatarFallback>
 						</Avatar>
-						<div className="font-medium">Acme Inc</div>
+						<div className="font-medium">
+							{user?.email?.split('@')[0] || 'User'}
+						</div>
 					</div>
 				</div>
 
-				<Button className="w-full gap-2 hover:bg-accent/50">
-					<Plus className="h-4 w-4" />
-					<span>New Project</span>
-				</Button>
+				<Link href="/project">
+					<Button className="w-full gap-2 hover:bg-accent/50">
+						<Plus className="h-4 w-4" />
+						New Project
+					</Button>
+				</Link>
 
 				<div className="relative">
 					<Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -60,7 +130,6 @@ const AppSidebar = () => {
 
 			{/* Content Section */}
 			<div className="flex-1 overflow-y-auto">
-
 				{/* Projects Section */}
 				<div className="p-3">
 					<div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
@@ -106,12 +175,16 @@ const AppSidebar = () => {
 							src="/placeholder.svg?height=36&width=36"
 							alt="User"
 						/>
-						<AvatarFallback>JD</AvatarFallback>
+						<AvatarFallback>
+							{user?.email?.slice(0, 2).toUpperCase() || 'U'}
+						</AvatarFallback>
 					</Avatar>
 					<div className="flex flex-col">
-						<span className="text-sm font-medium">John Doe</span>
+						<span className="text-sm font-medium">
+							{user?.email?.split('@')[0] || 'User'}
+						</span>
 						<span className="text-xs text-muted-foreground">
-							john@example.com
+							{user?.email || 'No email'}
 						</span>
 					</div>
 				</div>

@@ -30,15 +30,14 @@ export interface IUserInputs {
 	styleCue?: string; // e.g., "modern", "vintage", "minimalist"
 }
 
-export interface ProjectDocument extends Document { // Extend Mongoose Document
+export interface ProjectDocument extends Document {
+	// Extend Mongoose Document
 	_id: ObjectId;
 	userId: ObjectId; // Reference to the user
 
 	userInputs: IUserInputs;
 
 	packagingType: string; // e.g., "burgerClamshell", "coffeeCup", "frenchFryCarton"
-	packagingSize: string; // e.g., "standard", "12oz", "small" - important for dieline selection
-	dielineIdentifier: string; // Unique key for the specific dieline, e.g., "coffeeCup-12oz-standard"
 
 	generatedDesignVariations: IDesignVariation[];
 	selectedVariationId?: string; // The variationId of the user's chosen design
@@ -99,18 +98,6 @@ const ProjectSchema = new Schema<ProjectDocument>(
 			required: true,
 			// enum: ['burgerClamshell', 'coffeeCup', 'frenchFryCarton'], // Add more as you expand
 		},
-		packagingSize: {
-			type: String,
-			required: true,
-			// enum: ['small', 'medium', 'large', '8oz', '12oz', '16oz'], // Add more as you expand
-		},
-		dielineIdentifier: {
-			// This could be auto-generated based on packagingType and packagingSize
-			// or explicitly set if die-lines are more custom.
-			type: String,
-			required: true,
-			unique: true, // If this is the primary key for finding dieline configs
-		},
 		generatedDesignVariations: [DesignVariationSchema],
 		selectedVariationId: { type: String, required: false },
 		status: {
@@ -126,17 +113,6 @@ const ProjectSchema = new Schema<ProjectDocument>(
 		timestamps: true, // Automatically adds createdAt and updatedAt
 	}
 );
-
-// Indexing suggestion (if you frequently query by user and status)
-// ProjectSchema.index({ userId: 1, status: 1 });
-
-// Before saving, you might want to auto-generate the dielineIdentifier
-// ProjectSchema.pre('save', function(next) {
-//   if (this.isModified('packagingType') || this.isModified('packagingSize')) {
-//     this.dielineIdentifier = `${this.packagingType}-${this.packagingSize}`; // Basic example
-//   }
-//   next();
-// });
 
 const Project =
 	mongoose.models.Project || model<ProjectDocument>('Project', ProjectSchema);
