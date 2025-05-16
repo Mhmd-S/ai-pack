@@ -3,8 +3,8 @@ import { ProjectFormSchema } from '@/lib/definitions';
 import { connectDB } from '@/lib/mongodb';
 import Project from '@/lib/models/Project';
 import { verifySession } from '@/lib/data/auth';
-import { uploadToS3, uploadFromCDN } from '@/lib/s3-upload';
-import { burgerClamshellStandard } from '@/lib/dielines/burgerClamshell-standard';
+import { uploadToS3 } from '@/lib/s3-upload';
+import { burgerClamshell } from '@/lib/dielines/burgerClamshell';
 import { v4 as uuidv4 } from 'uuid';
 import { ReplicateAPI } from '@/lib/replicate-api';
 
@@ -134,19 +134,16 @@ export async function POST(request: Request) {
 					const variationId = uuidv4();
 					const sections = [];
 
-					for (const section of burgerClamshellStandard.sections) {
+					for (const section of burgerClamshell.sections) {
 						if (section.isAiGenerated) {
 							const webhookUrl = `https://johny.ngrok.dev/api/webhooks/replicate/${projectId}/${variationId}/${section.sectionName}`;
 
 							const input = {
-								size: '1024x1024',
-								style: 'any',
+								negative_prompt:
+									'ugly, broken, low quality, not symmetric, not centered, not balanced, cluttered, busy, too many elements',
 								prompt: `
-                  Colors to use: ${primaryColor} & ${secondaryColor}
-                  Logo: ${logoUrl}
-                  Tagline: ${tagLine}
-                  Style cue: ${styleCue}
-                `,
+									Create a pattern with the colors ${primaryColor} and ${secondaryColor} and the tagline ${tagLine} and the style ${styleCue} should be in the center of the design.
+									`,
 							};
 
 							await replicate.generateSVG(input, webhookUrl);

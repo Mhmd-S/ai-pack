@@ -23,15 +23,13 @@ export interface PredictionResponse {
 }
 
 export interface RecraftInput {
-	size: string;
-	style: string;
 	prompt: string;
-	aspect_ratio?: string;
+	negative_prompt: string;
 }
 
 export class ReplicateAPI {
 	private replicate: Replicate;
-	private readonly RECRAFT_MODEL = 'recraft-ai/recraft-v3-svg';
+	private readonly RECRAFT_MODEL = 'ideogram-ai/ideogram-v2';
 
 	constructor(apiToken: string) {
 		this.replicate = new Replicate({

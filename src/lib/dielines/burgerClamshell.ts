@@ -15,7 +15,7 @@ export interface DieLineConfig {
 	// Or the SVG file itself is loaded separately and sectionNames here map to SVG element IDs
 }
 
-export const burgerClamshellStandard: DieLineConfig = {
+export const burgerClamshell: DieLineConfig = {
 	sections: [
 		{
 			id: 'top',

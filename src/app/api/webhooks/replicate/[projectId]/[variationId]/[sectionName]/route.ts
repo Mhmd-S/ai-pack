@@ -34,7 +34,7 @@ export async function POST(
 			);
 		}
 
-		const { projectId, variationId, sectionName } = params;
+		const { projectId, variationId, sectionName } = await params;
 
 		// Validate project ID format
 		if (!mongoose.Types.ObjectId.isValid(projectId)) {
@@ -106,17 +106,37 @@ export async function POST(
 			}
 		);
 
-		// Check if all sections are completed
+		// Check if all sections that need generation are completed
 		const updatedProject = await Project.findById(projectId);
-		const variation = updatedProject?.generatedDesignVariations.find(
+		if (!updatedProject) {
+			throw new Error('Project not found after update');
+		}
+
+		// Find the current variation
+		const variation = updatedProject.generatedDesignVariations.find(
 			(v: { variationId: string }) => v.variationId === variationId
 		);
-		const allSectionsCompleted = variation?.sections.every(
+
+		if (!variation) {
+			throw new Error('Variation not found');
+		}
+
+		// Check if all sections that need generation are completed
+		const allSectionsCompleted = variation.sections.every(
 			(section: { status: string; isSolidColor: boolean }) =>
-				section.status === 'completed' || section.isSolidColor
+				// A section is considered complete if:
+				// 1. It's a solid color (no generation needed)
+				// 2. It has a completed status
+				// 3. It has a designOutputUrl (indicating successful generation)
+				section.isSolidColor || section.designOutputUrl
 		);
 
-		if (allSectionsCompleted) {
+		// If all sections are completed and the project is in generating/processing state,
+		// update the status to review
+		if (
+			allSectionsCompleted &&
+			['generating', 'processing'].includes(updatedProject.status)
+		) {
 			await Project.findByIdAndUpdate(projectId, {
 				status: 'review',
 			});
