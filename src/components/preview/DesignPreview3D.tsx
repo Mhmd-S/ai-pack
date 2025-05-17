@@ -1,374 +1,302 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 
-interface GLBModelViewerProps {
-	glbPath: string;
-	imageUrl?: string; // The image to map onto the model
-	targetMeshName?: string; // The exact name of the mesh within the GLB to apply the texture to
+interface OBJModelViewerProps {
+	objPath: string;
+	imageUrl?: string; // Primary texture, e.g., for 'top-z'
+	faceColors?: Record<string, string>; // Colors for specific faces
+	onFaceClick?: (faceName: string) => void;
 }
 
-const lightingControls = {
-	ambientIntensity: 1.0,
-	directionalIntensity: 3.0,
-	rimLightIntensity: 1.0,
-};
-
-const GLBModelViewer: React.FC<GLBModelViewerProps> = ({
-	glbPath,
+const OBJModelViewer: React.FC<OBJModelViewerProps> = ({
+	objPath,
 	imageUrl,
-	targetMeshName,
+	faceColors = {},
+	onFaceClick,
 }) => {
 	const mountRef = useRef<HTMLDivElement>(null);
-	const controlsRef = useRef<OrbitControls | null>(null);
-	const sceneRef = useRef<THREE.Scene | null>(null);
-	const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
-	const animationFrameIdRef = useRef<number | undefined>(undefined);
-	const loadedTextureRef = useRef<THREE.Texture | null>(null);
 	const [isLoading, setIsLoading] = useState(true);
+	const sceneRef = useRef<THREE.Scene | null>(null);
+	const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
+	const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+	const modelRef = useRef<THREE.Group | null>(null); // Ref to store the loaded model
 
+	const applyMaterialToFaces = useCallback(() => {
+		if (!modelRef.current) return;
+
+		const textureLoader = new THREE.TextureLoader();
+		let sharedTexture: THREE.Texture | null = null;
+		let textureLoadPromise = Promise.resolve();
+
+		if (imageUrl) {
+			textureLoadPromise = new Promise<void>((resolve, reject) => {
+				textureLoader.load(
+					imageUrl,
+					(loadedTexture) => {
+						loadedTexture.flipY = true;
+						loadedTexture.colorSpace = THREE.SRGBColorSpace;
+						loadedTexture.wrapS = THREE.ClampToEdgeWrapping;
+						loadedTexture.wrapT = THREE.ClampToEdgeWrapping;
+						loadedTexture.center.set(0.5, 0.5);
+						loadedTexture.rotation = Math.PI / 1; // Consider if this rotation is always needed
+						sharedTexture = loadedTexture;
+						resolve();
+					},
+					undefined,
+					(error) => {
+						console.error('Error loading primary texture:', error);
+						reject(error);
+					}
+				);
+			});
+		}
+
+		textureLoadPromise
+			.then(() => {
+				modelRef.current?.traverse((child) => {
+					if (child instanceof THREE.Mesh && child.material) {
+						const faceName = child.name;
+						let newMaterial: THREE.Material;
+
+						if (faceColors[faceName]) {
+							// Apply solid color
+							newMaterial = new THREE.MeshStandardMaterial({
+								color: new THREE.Color(faceColors[faceName]),
+								side: THREE.DoubleSide,
+								transparent: false,
+								opacity: 1,
+							});
+						} else if (faceName === 'top-z' && sharedTexture) {
+							// Apply primary texture to 'top-z' if no specific color override
+							newMaterial = new THREE.MeshStandardMaterial({
+								map: sharedTexture,
+								side: THREE.DoubleSide,
+								transparent: false, // Ensure this is false if texture has no alpha
+								opacity: 1,
+							});
+						} else {
+							// Fallback to original material or a default, ensure it's cloned
+							if (Array.isArray(child.material)) {
+								// If material is an array, clone the first one as a default
+								// This might need more sophisticated handling based on your model
+								newMaterial = child.material[0].clone();
+							} else {
+								newMaterial = child.material.clone();
+							}
+							// Ensure properties for non-textured/non-colored faces
+							(newMaterial as THREE.MeshStandardMaterial).map =
+								null;
+							(newMaterial as THREE.MeshStandardMaterial).color =
+								new THREE.Color(0x808080); // Default grey
+						}
+
+						newMaterial.side = THREE.DoubleSide;
+						newMaterial.needsUpdate = true;
+						child.material = newMaterial;
+					}
+				});
+			})
+			.catch((error) =>
+				console.error('Error in texture loading promise chain:', error)
+			);
+	}, [imageUrl, faceColors]);
 
 	useEffect(() => {
-		if (!mountRef.current || !glbPath) {
-			console.log('Mount ref or glbPath not available.');
+		if (!mountRef.current || !objPath) {
 			return;
 		}
 
 		const currentMount = mountRef.current;
 		let isMounted = true;
 
-		const scene = new THREE.Scene();
-		sceneRef.current = scene;
-		scene.background = null;
+		sceneRef.current = new THREE.Scene();
+		sceneRef.current.background = new THREE.Color(0xf0f0f0);
 
-		const camera = new THREE.PerspectiveCamera(
-			45,
+		cameraRef.current = new THREE.PerspectiveCamera(
+			50,
 			currentMount.clientWidth / currentMount.clientHeight,
 			0.1,
-			2000
+			1000
 		);
-		camera.position.set(0, 2, 4);
+		cameraRef.current.position.set(5, 5, 3);
 
-		const renderer = new THREE.WebGLRenderer({
+		rendererRef.current = new THREE.WebGLRenderer({
 			antialias: true,
 			alpha: true,
+			preserveDrawingBuffer: true,
 		});
-		renderer.setSize(currentMount.clientWidth, currentMount.clientHeight);
-		renderer.setPixelRatio(window.devicePixelRatio);
-		renderer.outputColorSpace = THREE.SRGBColorSpace;
-		renderer.shadowMap.enabled = true;
-		renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-		currentMount.appendChild(renderer.domElement);
-		rendererRef.current = renderer;
-
-		const ambientLight = new THREE.AmbientLight(
-			0xffffff,
-			lightingControls.ambientIntensity * 1.5
+		rendererRef.current.setSize(
+			currentMount.clientWidth,
+			currentMount.clientHeight
 		);
-		scene.add(ambientLight);
+		rendererRef.current.setPixelRatio(window.devicePixelRatio);
+		currentMount.appendChild(rendererRef.current.domElement);
 
-		const directionalLight = new THREE.DirectionalLight(
-			0xffffff,
-			lightingControls.directionalIntensity
+		const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+		sceneRef.current.add(ambientLight);
+
+		const directionalLight = new THREE.DirectionalLight(0xffffff, 1.2);
+		directionalLight.position.set(5, 10, 7.5);
+		sceneRef.current.add(directionalLight);
+
+		const controls = new OrbitControls(
+			cameraRef.current,
+			rendererRef.current.domElement
 		);
-		directionalLight.position.set(2, 4, 2);
-		directionalLight.castShadow = true;
-		directionalLight.shadow.mapSize.width = 2048;
-		directionalLight.shadow.mapSize.height = 2048;
-		directionalLight.shadow.camera.near = 0.5;
-		directionalLight.shadow.camera.far = 50;
-		scene.add(directionalLight);
-
-		const fillLight = new THREE.DirectionalLight(
-			0xffffff,
-			lightingControls.directionalIntensity * 0.5
-		);
-		fillLight.position.set(-2, 2, -2);
-		scene.add(fillLight);
-
-		const controls = new OrbitControls(camera, renderer.domElement);
-		controlsRef.current = controls;
 		controls.enableDamping = true;
 		controls.dampingFactor = 0.05;
-		controls.screenSpacePanning = false;
-		controls.minDistance = 2;
-		controls.maxDistance = 8;
-		controls.minPolarAngle = Math.PI / 4;
-		controls.maxPolarAngle = Math.PI / 2;
-		controls.target.set(0, 0, 0);
-		controls.update();
 
-		const textureLoader = new THREE.TextureLoader();
-		const gltfLoader = new GLTFLoader();
-		const dracoLoader = new DRACOLoader();
-		dracoLoader.setDecoderPath(
-			'https://www.gstatic.com/draco/v1/decoders/' // Ensure this path is accessible
-		);
-		gltfLoader.setDRACOLoader(dracoLoader);
+		const loader = new OBJLoader();
+		loader.load(
+			objPath,
+			(object) => {
+				if (!isMounted || !sceneRef.current) return;
 
-		const loadResources = async () => {
-			try {
-				setIsLoading(true);
-				let texturePromise: Promise<THREE.Texture | null> =
-					Promise.resolve(null);
-				if (imageUrl && targetMeshName) {
-					console.log(
-						`Attempting to load texture: ${imageUrl} for target: ${targetMeshName}`
-					);
-					texturePromise = new Promise((resolve, reject) => {
-						textureLoader.load(
-							imageUrl,
-							(loadedTexture) => {
-								loadedTexture.flipY = false;
-								loadedTexture.colorSpace = THREE.SRGBColorSpace;
-								loadedTextureRef.current = loadedTexture;
-								console.log('Texture loaded successfully.');
-								resolve(loadedTexture);
-							},
-							undefined,
-							(error) => {
-								console.error(
-									`Error loading texture: ${imageUrl}`,
-									error
-								);
-								reject(error);
-							}
-						);
-					});
-				} else if (imageUrl && !targetMeshName) {
-					console.warn(
-						'imageUrl provided, but no targetMeshName. Texture will not be applied.'
-					);
-				}
+				modelRef.current = object; // Store the model reference
+				applyMaterialToFaces(); // Apply initial materials/colors
 
-				console.log(`Attempting to load GLB: ${glbPath}`);
-				const gltfPromise = new Promise<THREE.Group>(
-					(resolve, reject) => {
-						gltfLoader.load(
-							glbPath,
-							(gltf) => {
-								console.log('GLB model loaded successfully.');
-								resolve(gltf.scene);
-							},
-							(xhr) => {
-								const progress = (xhr.loaded / xhr.total) * 100;
-								if (isMounted) {
-									console.log(
-										`GLB Loading progress: ${progress.toFixed(
-											2
-										)}%`
-									);
-								}
-							},
-							(error) => {
-								console.error(
-									'An error happened loading the GLB model:',
-									error
-								);
-								reject(error);
-							}
-						);
-					}
-				);
-
-				const [texture, model] = await Promise.all([
-					texturePromise,
-					gltfPromise,
-				]);
-
-				if (!isMounted) return;
-
-				let targetMaterialFound = false;
-				model.traverse((child) => {
-					if (child instanceof THREE.Mesh) {
-						child.castShadow = true;
-						child.receiveShadow = true;
-
-						if (
-							texture &&
-							targetMeshName &&
-							child.name === targetMeshName
-						) {
-							console.log(
-								`Found target mesh: "${child.name}". Applying texture.`
-							);
-							if (child.material) {
-								if (
-									child.material instanceof
-										THREE.MeshStandardMaterial ||
-									child.material instanceof
-										THREE.MeshPhysicalMaterial
-								) {
-									child.material = child.material.clone(); // Clone material
-									child.material.map = texture;
-									child.material.needsUpdate = true;
-									targetMaterialFound = true;
-									console.log(
-										`Texture applied successfully to "${targetMeshName}".`
-									);
-								} else {
-									console.warn(
-										`Target mesh "${targetMeshName}" material is not MeshStandardMaterial or MeshPhysicalMaterial. Type: ${child.material.constructor.name}. Texture map not applied.`
-									);
-								}
-							} else {
-								console.warn(
-									`Target mesh "${targetMeshName}" has no material. Cannot apply texture.`
-								);
-							}
-						}
-					}
-				});
-
-				if (texture && targetMeshName && !targetMaterialFound) {
-					console.warn(
-						`Texture loaded, but target mesh named "${targetMeshName}" was not found or had no suitable material in the GLB.`
-					);
-				}
-
-				const box = new THREE.Box3().setFromObject(model);
+				const box = new THREE.Box3().setFromObject(object);
 				const center = box.getCenter(new THREE.Vector3());
-				const size = box.getSize(new THREE.Vector3());
+				object.position.sub(center);
+				object.rotation.y = Math.PI; // Adjust as needed
 
-				model.position.sub(center);
-
-				const maxDim = Math.max(size.x, size.y, size.z);
-
-				camera.position.set(
-					0.32,
-					1.4,
-					1.4
-				);
-				if (controlsRef.current) {
-					controlsRef.current.target.copy(center);
-					controlsRef.current.update();
-				}
-				camera.lookAt(center);
-				camera.updateProjectionMatrix();
-
-				scene.add(model);
-
-				const groundSize = Math.max(10, maxDim * 2);
-				const groundGeometry = new THREE.PlaneGeometry(
-					groundSize,
-					groundSize
-				);
-				const groundMaterial = new THREE.MeshStandardMaterial({
-					color: 0x999999,
-					roughness: 0.9,
-					metalness: 0.1,
-				});
-				const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-				ground.rotation.x = -Math.PI / 2;
-				ground.position.y = box.min.y - center.y - 0.01;
-				ground.receiveShadow = true;
-				scene.add(ground);
-
+				sceneRef.current.add(object);
 				setIsLoading(false);
-			} catch (error) {
-				if (isMounted) {
-					console.error('Failed to load resources:', error);
-					setIsLoading(false);
-				}
+			},
+			undefined, // Progress callback (optional)
+			(error) => {
+				console.error('Error loading OBJ:', error);
+				setIsLoading(false);
 			}
-		};
-
-		loadResources();
+		);
 
 		const animate = () => {
-			if (!isMounted) return;
-			animationFrameIdRef.current = requestAnimationFrame(animate);
-			if (controlsRef.current) {
-				controlsRef.current.update();
-			}
-			if (rendererRef.current) {
-				rendererRef.current.render(scene, camera);
-			}
+			if (
+				!isMounted ||
+				!rendererRef.current ||
+				!sceneRef.current ||
+				!cameraRef.current
+			)
+				return;
+			requestAnimationFrame(animate);
+			controls.update();
+			rendererRef.current.render(sceneRef.current, cameraRef.current);
 		};
 		animate();
 
 		const handleResize = () => {
-			if (!isMounted || !currentMount || !rendererRef.current) return;
+			if (
+				!isMounted ||
+				!currentMount ||
+				!rendererRef.current ||
+				!cameraRef.current
+			)
+				return;
 			const width = currentMount.clientWidth;
 			const height = currentMount.clientHeight;
-
-			camera.aspect = width / height;
-			camera.updateProjectionMatrix();
+			cameraRef.current.aspect = width / height;
+			cameraRef.current.updateProjectionMatrix();
 			rendererRef.current.setSize(width, height);
 		};
 		window.addEventListener('resize', handleResize);
 
+		// Raycasting for face clicks
+		const raycaster = new THREE.Raycaster();
+		const mouse = new THREE.Vector2();
+
+		const onClick = (event: MouseEvent) => {
+			if (
+				!isMounted ||
+				!currentMount ||
+				!cameraRef.current ||
+				!modelRef.current ||
+				!onFaceClick
+			)
+				return;
+
+			// Calculate mouse position in normalized device coordinates (-1 to +1) for both components
+			const rect = currentMount.getBoundingClientRect();
+			mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+			mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+			raycaster.setFromCamera(mouse, cameraRef.current);
+			const intersects = raycaster.intersectObject(
+				modelRef.current,
+				true
+			); // true for recursive
+
+			if (intersects.length > 0) {
+				const firstIntersectedObject = intersects[0].object;
+				if (firstIntersectedObject instanceof THREE.Mesh) {
+					console.log('Clicked face:', firstIntersectedObject.name);
+					onFaceClick(firstIntersectedObject.name); // Pass the mesh name
+				}
+			}
+		};
+
+		if (onFaceClick) {
+			currentMount.addEventListener('click', onClick);
+		}
+
 		return () => {
 			isMounted = false;
-			console.log('GLBViewer cleanup initiated.');
 			window.removeEventListener('resize', handleResize);
-			if (animationFrameIdRef.current) {
-				cancelAnimationFrame(animationFrameIdRef.current);
+			if (onFaceClick) {
+				currentMount.removeEventListener('click', onClick);
 			}
-			if (controlsRef.current) {
-				controlsRef.current.dispose();
-				controlsRef.current = null;
+			if (
+				currentMount &&
+				rendererRef.current?.domElement.parentNode === currentMount
+			) {
+				currentMount.removeChild(rendererRef.current.domElement);
 			}
-			if (loadedTextureRef.current) {
-				loadedTextureRef.current.dispose();
-				loadedTextureRef.current = null;
-			}
-			if (sceneRef.current) {
-				sceneRef.current.traverse((object) => {
-					if (object instanceof THREE.Mesh) {
-						if (object.geometry) object.geometry.dispose();
-						if (object.material) {
-							if (Array.isArray(object.material)) {
-								object.material.forEach((mat) => {
-									if (mat.map) mat.map.dispose();
-									mat.dispose();
-								});
-							} else {
-								if (
-									object.material.map &&
-									object.material.map !==
-										loadedTextureRef.current
-								) {
-									object.material.map.dispose();
-								}
-								object.material.dispose();
-							}
-						}
+			rendererRef.current?.dispose();
+			// Dispose materials and geometries if necessary
+			modelRef.current?.traverse((child) => {
+				if (child instanceof THREE.Mesh) {
+					child.geometry.dispose();
+					if (Array.isArray(child.material)) {
+						child.material.forEach((material) =>
+							material.dispose()
+						);
+					} else {
+						child.material.dispose();
 					}
-				});
-				sceneRef.current = null;
-			}
-			if (rendererRef.current) {
-				rendererRef.current.dispose();
-				if (
-					currentMount &&
-					rendererRef.current.domElement.parentNode === currentMount
-				) {
-					currentMount.removeChild(rendererRef.current.domElement);
 				}
-				rendererRef.current = null;
-			}
-			dracoLoader.dispose();
-			console.log('GLBViewer cleanup complete.');
+			});
+			sceneRef.current = null;
+			cameraRef.current = null;
+			rendererRef.current = null;
+			modelRef.current = null;
 		};
-	}, [glbPath, imageUrl, targetMeshName, lightingControls]);
+	}, [objPath]); // Only re-run if objPath changes. imageUrl and faceColors are handled by applyMaterialToFaces
+
+	// Effect to re-apply materials when faceColors or imageUrl changes
+	useEffect(() => {
+		applyMaterialToFaces();
+	}, [faceColors, imageUrl, applyMaterialToFaces]);
 
 	return (
-		<div style={{ position: 'relative', width: '100%', height: '200px' }}>
+		<div
+			style={{
+				position: 'relative',
+				width: '100%',
+				height: '100%' /* Ensure parent has height */,
+			}}
+		>
 			<div
 				ref={mountRef}
 				style={{
 					width: '100%',
 					height: '100%',
-					border: '1px solid #ccc',
-					borderRadius: '8px',
+					// border: '1px solid #ccc', // Optional: Keep or remove based on preference
+					// borderRadius: '8px',
 					overflow: 'hidden',
 					position: 'relative',
 				}}
 			/>
-
 			{isLoading && (
 				<div className="absolute inset-0 flex items-center justify-center bg-slate-50/80 backdrop-blur-sm">
 					<div className="flex flex-col items-center gap-3">
@@ -383,4 +311,4 @@ const GLBModelViewer: React.FC<GLBModelViewerProps> = ({
 	);
 };
 
-export default GLBModelViewer;
+export default OBJModelViewer;

@@ -12,14 +12,16 @@ import {
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertTriangle, RefreshCw, Check } from 'lucide-react';
 import { GeneratingDesignsLoader } from '@/components/GeneratingDesignsLoader';
-import GLBModelViewer from '@/components/preview/DesignPreview3D';
+import OBJModelViewer from '@/components/preview/DesignPreview3D';
 
 interface Project {
 	_id: string;
 	status: 'generating' | 'review' | 'error';
+	userInputs: {
+		businessName: string;
+	};
 	generatedDesignVariations: Array<{
 		variationId: string;
 		sections: Array<{
@@ -37,7 +39,6 @@ export default function ProjectPage() {
 	const [project, setProject] = useState<Project | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [loading, setLoading] = useState(true);
-	const [selectedView, setSelectedView] = useState<'3d'>('3d');
 	const isPolling = useRef(false);
 
 	useEffect(() => {
@@ -149,7 +150,8 @@ export default function ProjectPage() {
 					<div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
 						<div>
 							<CardTitle className="text-2xl font-bold bg-gradient-to-r from-violet-700 to-purple-700 bg-clip-text text-transparent">
-								{project.userInputs.businessName}
+								{project?.userInputs?.businessName ||
+									'Project Details'}
 							</CardTitle>
 						</div>
 						<div className="flex items-center gap-2">
@@ -189,47 +191,34 @@ export default function ProjectPage() {
 
 					{project?.status === 'review' && currentDesign && (
 						<div className="space-y-6">
-							<Tabs
-								value={selectedView}
-								onValueChange={(v) =>
-									setSelectedView(v as '3d')
-								}
-							>
-								<TabsList className="mb-6">
-									<TabsTrigger value="3d">
-										3D Preview
-									</TabsTrigger>
-								</TabsList>
-
-								<TabsContent value="3d" className="space-y-6">
-									<div className="grid grid-cols-2 gap-6">
-										{project.generatedDesignVariations.map(
-											(variation, index) => (
-												<div
-													key={variation.variationId}
-													className="space-y-4"
-												>
-													<h3 className="text-lg font-semibold">
-														Design Variation{' '}
-														{index + 1}
-													</h3>
-													<div className="h-[200px]">
-														<GLBModelViewer
-															glbPath="/glb/clamshell-box.glb"
-															targetMeshName="BoxTopSurface"
-															imageUrl={
-																variation
-																	.sections[0]
-																	?.designOutputUrl
-															}
-														/>
-													</div>
-												</div>
-											)
-										)}
-									</div>
-								</TabsContent>
-							</Tabs>
+							<div className="grid grid-cols-2 gap-6">
+								{project.generatedDesignVariations.map(
+									(variation, index) => (
+										<div
+											key={variation.variationId}
+											className="space-y-4 cursor-pointer hover:shadow-xl transition-shadow p-4 rounded-lg border border-slate-200"
+											onClick={() =>
+												router.push(
+													`/project/${project._id}/edit/${variation.variationId}`
+												)
+											}
+										>
+											<h3 className="text-lg font-semibold">
+												Design Variation {index + 1}
+											</h3>
+											<div className="h-[200px]">
+												<OBJModelViewer
+													objPath="/glb/untitled.obj"
+													imageUrl={
+														variation.sections[0]
+															?.designOutputUrl
+													}
+												/>
+											</div>
+										</div>
+									)
+								)}
+							</div>
 						</div>
 					)}
 				</CardContent>
