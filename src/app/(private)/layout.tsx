@@ -15,7 +15,7 @@ export default function RootLayout({
 		<html lang="en">
 			<body className="flex h-screen">
 				<AppSidebar />
-				<main className="flex-1 overflow-auto p-4">{children}</main>
+				<main className="flex-1 overflow-auto">{children}</main>
 			</body>
 		</html>
 	);

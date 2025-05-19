@@ -2,25 +2,16 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import {
-	Card,
-	CardContent,
-	CardHeader,
-	CardTitle,
-	CardFooter,
-} from '@/components/ui/card';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { AlertTriangle, ArrowLeft, Palette, Save } from 'lucide-react';
-import OBJModelViewer from '@/components/preview/DesignPreview3D'; // Ensure this path is correct
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from '@/components/ui/select'; // For face selection
-import { Input } from '@/components/ui/input'; // For color input
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { AlertTriangle, ArrowLeft, Save } from 'lucide-react';
+import OBJModelEdit from '@/components/edit/DesignEdit3D';
+import FloatingToolbar from '@/components/edit/FloatingToolbar';
+import InstructionsModal from '@/components/edit/InstructionsModal';
+import { toast } from 'sonner';
+import { Toaster as SonnerToaster } from '@/components/ui/sonner';
+import DraggableText from '@/components/edit/DraggableText';
+import * as THREE from 'three';
 
 // Mirror the Project and Variation interfaces from the project page
 interface Section {
@@ -42,20 +33,28 @@ interface Project {
 		businessName: string;
 	};
 	generatedDesignVariations: DesignVariation[];
+	selectedVariationId?: string;
 }
 
-const FACE_NAMES = [
-	'top-f',
-	'top-l',
-	'top-r',
-	'top-z',
-	'top-b',
-	'bot-f',
-	'bot-l',
-	'bot-r',
-	'bot-z',
-	'bot-b',
-];
+// Define ActiveTool type here for the page state
+export type ActiveTool = 'color' | 'measurements' | 'text' | null;
+
+interface TextSettings {
+	font: string;
+	size: number;
+	color: string;
+}
+
+interface TextElement {
+	id: string;
+	text: string;
+	position: { x: number; y: number };
+	size: { width: number; height: number };
+	font: string;
+	fontSize: number;
+	color: string;
+	faceName: string;
+}
 
 export default function EditVariationPage() {
 	const params = useParams();
@@ -67,11 +66,31 @@ export default function EditVariationPage() {
 		useState<DesignVariation | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [loading, setLoading] = useState(true);
+	const [isSaving, setIsSaving] = useState(false);
 	const [selectedFace, setSelectedFace] = useState<string | null>(null);
-	const [selectedColor, setSelectedColor] = useState<string>('#FFFFFF'); // Default to white
+
+	// New state for the floating toolbar
+	const [activeTool, setActiveTool] = useState<ActiveTool>(null);
+	const [dropperColor, setDropperColor] = useState<string>('#FFFFFF');
+
+	// New state for measurements (scale)
+	const [modelScale, setModelScale] = useState<{
+		x: number;
+		y: number;
+		z: number;
+	}>({ x: 1, y: 1, z: 1 });
+	const [showInstructionsModal, setShowInstructionsModal] = useState(false);
+
+	const [textElements, setTextElements] = useState<TextElement[]>([]);
+	const [textSettings, setTextSettings] = useState<TextSettings>({
+		font: 'Arial',
+		size: 24,
+		color: '#FFFFFF',
+	});
+	const [selectedTextId, setSelectedTextId] = useState<string | null>(null);
 
 	const fetchProject = useCallback(async () => {
-		if (!projectId) return;
+		if (!projectId || !variationId) return;
 		setLoading(true);
 		try {
 			const response = await fetch(`/api/projects/${projectId}`);
@@ -81,13 +100,61 @@ export default function EditVariationPage() {
 			const data: Project = await response.json();
 			setProject(data);
 
-			const variation = data.generatedDesignVariations.find(
+			const variationToSelect = data.generatedDesignVariations.find(
 				(v) => v.variationId === variationId
 			);
-			if (variation) {
-				setSelectedVariation(variation);
+
+			if (variationToSelect) {
+				setSelectedVariation(variationToSelect);
+
+				// Call the API to mark this variation as selected and remove others
+				// We only do this if the variation hasn't been selected yet or if there are multiple variations present
+				if (
+					data.selectedVariationId !== variationId ||
+					data.generatedDesignVariations.length > 1
+				) {
+					try {
+						const selectResponse = await fetch(
+							`/api/projects/${projectId}/select-variation`,
+							{
+								method: 'PATCH',
+								headers: { 'Content-Type': 'application/json' },
+								body: JSON.stringify({ variationId }),
+							}
+						);
+						if (!selectResponse.ok) {
+							const errorData = await selectResponse.json();
+							console.error(
+								'Failed to select variation:',
+								errorData.message
+							);
+						} else {
+							const updatedProjectData =
+								await selectResponse.json();
+							// Update the local project state with the potentially modified project from the backend
+							// (e.g., if status changed or to ensure consistency)
+							setProject(updatedProjectData);
+							setSelectedVariation(
+								updatedProjectData.generatedDesignVariations.find(
+									(v: DesignVariation) =>
+										v.variationId === variationId
+								)
+							);
+							console.log(
+								'Variation selected and others removed successfully.'
+							);
+						}
+					} catch (selectionError) {
+						console.error(
+							'Error calling select-variation API:',
+							selectionError
+						);
+					}
+				}
 			} else {
-				setError('Selected design variation not found.');
+				setError(
+					'Selected design variation not found in project data.'
+				);
 			}
 		} catch (err) {
 			setError(
@@ -104,133 +171,261 @@ export default function EditVariationPage() {
 		fetchProject();
 	}, [fetchProject]);
 
-	const handleFaceSelect = (faceName: string) => {
-		setSelectedFace(faceName);
-		// Potentially find existing color for this face from variation data
-		const faceSection = selectedVariation?.sections.find(
-			(s) => s.sectionName === faceName
-		);
-		if (faceSection?.isSolidColor && faceSection.solidColorValue) {
-			setSelectedColor(faceSection.solidColorValue);
-		} else {
-			setSelectedColor('#FFFFFF'); // Reset if no color defined or not a solid color
-		}
-	};
+	const handleFaceClick = useCallback(
+		(faceName: string) => {
+			setSelectedFace(faceName); // Keep track of the last clicked face, might be useful
 
-	const handleColorChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-		setSelectedColor(event.target.value);
-	};
+			if (activeTool === 'color') {
+				if (!selectedVariation || !project) return;
 
-	const handleApplyColor = async () => {
-		if (!selectedFace || !selectedVariation || !project) return;
-
-		// Here you would typically update the backend with the new color for the selected face
-		console.log(
-			`Applying color ${selectedColor} to face ${selectedFace} for variation ${selectedVariation.variationId}`
-		);
-		// For now, we'll update the local state to reflect the change
-		// This is a placeholder for actual backend update and re-fetch or optimistic update
-		const updatedSections = selectedVariation.sections.map((section) => {
-			if (section.sectionName === selectedFace) {
-				return {
-					...section,
-					isSolidColor: true,
-					solidColorValue: selectedColor,
-					designOutputUrl: undefined,
-				};
-			}
-			return section;
-		});
-
-		// If the face wasn't in sections, add it (this logic might need refinement based on backend)
-		if (!updatedSections.find((s) => s.sectionName === selectedFace)) {
-			updatedSections.push({
-				sectionName: selectedFace,
-				isSolidColor: true,
-				solidColorValue: selectedColor,
-			});
-		}
-
-		const updatedVariation = {
-			...selectedVariation,
-			sections: updatedSections,
-		};
-		setSelectedVariation(updatedVariation);
-
-		// Update the project state as well
-		if (project) {
-			const updatedProjectVariations =
-				project.generatedDesignVariations.map((v) =>
-					v.variationId === variationId ? updatedVariation : v
+				console.log(
+					`Applying color ${dropperColor} to face ${faceName} via dropper for variation ${selectedVariation.variationId}`
 				);
-			setProject({
-				...project,
-				generatedDesignVariations: updatedProjectVariations,
-			});
+
+				const updatedSections = selectedVariation.sections.map(
+					(section) => {
+						if (section.sectionName === faceName) {
+							return {
+								...section,
+								isSolidColor: true,
+								solidColorValue: dropperColor,
+								designOutputUrl: undefined,
+							};
+						}
+						return section;
+					}
+				);
+
+				if (!updatedSections.find((s) => s.sectionName === faceName)) {
+					updatedSections.push({
+						sectionName: faceName,
+						isSolidColor: true,
+						solidColorValue: dropperColor,
+					});
+				}
+
+				const updatedVariation = {
+					...selectedVariation,
+					sections: updatedSections,
+				};
+				setSelectedVariation(updatedVariation);
+
+				if (project) {
+					const updatedProjectVariations =
+						project.generatedDesignVariations.map((v) =>
+							v.variationId === variationId ? updatedVariation : v
+						);
+					setProject({
+						...project,
+						generatedDesignVariations: updatedProjectVariations,
+					});
+				}
+			} else {
+				// If not in color tool mode, just select the face and update color picker for potential manual edit
+				const faceSection = selectedVariation?.sections.find(
+					(s) => s.sectionName === faceName
+				);
+				if (faceSection?.isSolidColor && faceSection.solidColorValue) {
+					// When a face is clicked (not in dropper mode), we used to update selectedColor.
+					// Now, we just set the dropper color to the face's color if one exists.
+					if (activeTool !== ('color' as ActiveTool)) {
+						setDropperColor(faceSection.solidColorValue);
+					}
+				} else {
+					if (activeTool !== ('color' as ActiveTool)) {
+						setDropperColor('#FFFFFF');
+					}
+				}
+			}
+		},
+		[
+			activeTool,
+			dropperColor,
+			project,
+			selectedVariation,
+			setDropperColor,
+			setProject,
+			setSelectedFace,
+			setSelectedVariation,
+			variationId,
+		]
+	);
+
+	const handleDropperColorChange = (
+		event: React.ChangeEvent<HTMLInputElement>
+	) => {
+		setDropperColor(event.target.value);
+	};
+
+	const handleSaveChanges = async () => {
+		if (!project || !selectedVariation) {
+			toast.error('Cannot Save: No project or variation data to save.');
+			return;
+		}
+		setIsSaving(true);
+		try {
+			const response = await fetch(
+				`/api/projects/${project._id}/update-variation`,
+				{
+					method: 'PATCH',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						variationId: selectedVariation.variationId,
+						sections: selectedVariation.sections,
+					}),
+				}
+			);
+			if (!response.ok) {
+				const errorData = await response.json();
+				throw new Error(errorData.message || 'Failed to save changes');
+			}
+			const updatedProject = await response.json();
+			setProject(updatedProject); // Update project state with response
+			// Find the updated variation within the updated project to ensure consistency
+			const newlySavedVariation =
+				updatedProject.generatedDesignVariations.find(
+					(v: DesignVariation) =>
+						v.variationId === selectedVariation.variationId
+				);
+			if (newlySavedVariation) setSelectedVariation(newlySavedVariation);
+			console.log('Changes saved successfully!');
+			toast.success('Your changes have been saved.');
+		} catch (err) {
+			console.error('Error saving changes:', err);
+			toast.error(
+				err instanceof Error ? err.message : 'Could not save changes'
+			);
+		} finally {
+			setIsSaving(false);
+		}
+	};
+
+	const toggleTool = (tool: ActiveTool) => {
+		setActiveTool((prev) => (prev === tool ? null : tool));
+	};
+
+	const handleScaleChange = (axis: 'x' | 'y' | 'z', value: string) => {
+		const numericValue = parseFloat(value);
+		if (!isNaN(numericValue)) {
+			setModelScale((prevScale) => ({
+				...prevScale,
+				[axis]: numericValue,
+			}));
+		}
+	};
+
+	// Add text settings handlers
+	const handleFontChange = (font: string) => {
+		setTextSettings((prev) => ({ ...prev, font }));
+		if (selectedTextId) {
+			setTextElements((prev) =>
+				prev.map((text) =>
+					text.id === selectedTextId ? { ...text, font } : text
+				)
+			);
+		}
+	};
+
+	const handleSizeChange = (size: number) => {
+		setTextSettings((prev) => ({ ...prev, size }));
+		if (selectedTextId) {
+			setTextElements((prev) =>
+				prev.map((text) =>
+					text.id === selectedTextId
+						? { ...text, fontSize: size }
+						: text
+				)
+			);
+		}
+	};
+
+	const handleColorChange = (color: string) => {
+		setTextSettings((prev) => ({ ...prev, color }));
+		if (selectedTextId) {
+			setTextElements((prev) =>
+				prev.map((text) =>
+					text.id === selectedTextId ? { ...text, color } : text
+				)
+			);
+		}
+	};
+
+	const handleTextPlace = (
+		text: string,
+		position: THREE.Vector3,
+		settings: TextSettings
+	) => {
+		if (!selectedFace) {
+			toast.error('Please select a face first before adding text');
+			return;
 		}
 
-		// Placeholder for API call to save changes
-		// try {
-		//     const response = await fetch(`/api/projects/${projectId}/variations/${variationId}`, {
-		//         method: 'PATCH', // or PUT
-		//         headers: { 'Content-Type': 'application/json' },
-		//         body: JSON.stringify({ updatedSections }),
-		//     });
-		//     if (!response.ok) throw new Error('Failed to save changes');
-		//     // Optionally re-fetch project or update state based on response
-		//     alert('Changes saved!');
-		// } catch (err) {
-		//     setError(err instanceof Error ? err.message : 'Could not save changes');
-		// }
-		alert(
-			`Color ${selectedColor} applied to ${selectedFace}. Remember to implement saving!`
+		const newTextElement: TextElement = {
+			id: Math.random().toString(36).substr(2, 9),
+			text,
+			position: { x: position.x, y: position.y },
+			size: { width: 200, height: 100 },
+			font: settings.font,
+			fontSize: settings.size,
+			color: settings.color,
+			faceName: selectedFace,
+		};
+
+		setTextElements((prev) => [...prev, newTextElement]);
+		setSelectedTextId(newTextElement.id);
+	};
+
+	const handleTextUpdate = (id: string, updates: Partial<TextElement>) => {
+		setTextElements((prev) =>
+			prev.map((text) =>
+				text.id === id ? { ...text, ...updates } : text
+			)
 		);
+	};
+
+	const handleTextDelete = (id: string) => {
+		setTextElements((prev) => prev.filter((text) => text.id !== id));
+		if (selectedTextId === id) {
+			setSelectedTextId(null);
+		}
 	};
 
 	if (loading) {
 		return (
-			<div className="flex flex-col items-center justify-center min-h-[calc(100vh-100px)] p-6">
-				<div className="w-12 h-12 border-4 border-slate-200 border-t-slate-600 rounded-full animate-spin" />
-				<p className="mt-4 text-muted-foreground">
-					Loading design editor...
-				</p>
+			<div className="flex flex-col items-center justify-center h-screen bg-slate-900 text-slate-300">
+				<div className="w-12 h-12 border-4 border-slate-700 border-t-violet-500 rounded-full animate-spin" />
+				<p className="mt-4">Loading Design Editor...</p>
 			</div>
 		);
 	}
 
-	if (error) {
+	if (error && !isSaving) {
 		return (
-			<div className="max-w-4xl mx-auto p-6">
-				<Alert variant="destructive" className="mb-6">
-					<AlertTriangle className="h-4 w-4" />
-					<AlertTitle>Error</AlertTitle>
+			<div className="flex flex-col items-center justify-center h-screen bg-slate-900 text-slate-300 p-6">
+				<Alert
+					variant="destructive"
+					className="bg-red-800/20 border-red-700 text-red-300 max-w-md w-full"
+				>
+					<AlertTriangle className="h-5 w-5 text-red-400" />
+					<AlertTitle className="text-red-400">Error</AlertTitle>
 					<AlertDescription>{error}</AlertDescription>
 				</Alert>
-				<Button
-					onClick={() =>
-						router.push(
-							projectId ? `/project/${projectId}` : '/projects'
-						)
-					}
-				>
-					<ArrowLeft className="mr-2 h-4 w-4" />
-					Back to Project
-				</Button>
 			</div>
 		);
 	}
 
 	if (!project || !selectedVariation) {
 		return (
-			<div className="max-w-4xl mx-auto p-6 text-center">
-				<p>Project or variation not found.</p>
+			<div className="flex flex-col items-center justify-center h-screen bg-slate-900 text-slate-300">
+				<p>Project or variation data not found.</p>
 				<Button
+					variant="outline"
+					className="mt-4 border-slate-600 hover:bg-slate-700 hover:text-slate-200"
 					onClick={() =>
 						router.push(
 							projectId ? `/project/${projectId}` : '/projects'
 						)
 					}
-					className="mt-4"
 				>
 					<ArrowLeft className="mr-2 h-4 w-4" />
 					Back to Project
@@ -253,125 +448,89 @@ export default function EditVariationPage() {
 	}, {} as Record<string, string>);
 
 	return (
-		<div className="max-w-6xl mx-auto p-4 md:p-6">
-			<Card className="shadow-lg border-0">
-				<CardHeader className="p-6 pb-4 border-b">
-					<div className="flex items-center justify-between">
-						<CardTitle className="text-2xl font-bold">
-							Edit Design: {project.userInputs.businessName} -
-							Variation{' '}
-							{selectedVariation.variationId.substring(0, 6)}...
-						</CardTitle>
-						<Button
-							variant="outline"
-							onClick={() =>
-								router.push(`/project/${project._id}`)
-							}
-						>
-							<ArrowLeft className="mr-2 h-4 w-4" />
-							Back to Project
-						</Button>
-					</div>
-				</CardHeader>
+		<div className="flex flex-col h-screen bg-slate-800 text-slate-100">
+			<SonnerToaster richColors />
+			{/* Header Area */}
+			<header className="flex items-center justify-between p-3 bg-slate-900 border-b border-slate-700 shadow-md print:hidden">
+				<Button
+					onClick={handleSaveChanges}
+					disabled={isSaving}
+					className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 text-sm disabled:opacity-50"
+				>
+					<Save className="mr-2 h-4 w-4" />
+					{isSaving ? 'Saving...' : 'Save All Changes'}
+				</Button>
+			</header>
 
-				<CardContent className="p-6 grid md:grid-cols-3 gap-6">
-					<div className="md:col-span-2">
-						<h3 className="text-lg font-semibold mb-2">
-							3D Preview
-						</h3>
-						<div className="h-[400px] border rounded-lg overflow-hidden">
-							{/*
-                                TODO: Pass selectedFace and selectedColor to OBJModelViewer
-                                and a method to update them from clicks within the viewer.
-                                Also, OBJModelViewer needs to be able to apply colors to specific faces.
-                            */}
-							<OBJModelViewer
-								objPath="/glb/untitled.obj" // This should ideally come from project data if variable
-								imageUrl={primaryTextureUrl} // Pass the primary texture
-								onFaceClick={handleFaceSelect}
-								faceColors={faceColorMap}
+			{/* Main Content Area (Viewport + Sidebar) */}
+			<div className="flex flex-1 overflow-hidden">
+				<FloatingToolbar
+					activeTool={activeTool}
+					onToggleTool={(tool) => toggleTool(tool as ActiveTool)}
+					dropperColor={dropperColor}
+					onDropperColorChange={handleDropperColorChange}
+					modelScale={modelScale}
+					onScaleChange={handleScaleChange}
+					onShowInstructions={() => setShowInstructionsModal(true)}
+					textSettings={{
+						font: textSettings.font,
+						size: textSettings.size,
+						color: textSettings.color,
+						onFontChange: handleFontChange,
+						onSizeChange: handleSizeChange,
+						onColorChange: handleColorChange,
+					}}
+				/>
+
+				<InstructionsModal
+					isOpen={showInstructionsModal}
+					onOpenChange={setShowInstructionsModal}
+				/>
+				<main className="flex-1 bg-slate-900 overflow-hidden relative">
+					<OBJModelEdit
+						objPath="/glb/untitled.obj"
+						imageUrl={primaryTextureUrl}
+						onFaceClick={handleFaceClick}
+						faceColors={faceColorMap}
+						selectedFaceName={selectedFace || undefined}
+						modelScaleX={modelScale.x}
+						modelScaleY={modelScale.y}
+						modelScaleZ={modelScale.z}
+						activeTool={activeTool}
+						textSettings={textSettings}
+						onTextPlace={handleTextPlace}
+					/>
+					{/* Text Elements Overlay */}
+					{activeTool === 'text' &&
+						textElements.map((textElement) => (
+							<DraggableText
+								key={textElement.id}
+								text={textElement}
+								isSelected={textElement.id === selectedTextId}
+								onSelect={() =>
+									setSelectedTextId(textElement.id)
+								}
+								onUpdate={(updates) =>
+									handleTextUpdate(textElement.id, updates)
+								}
+								onDelete={() =>
+									handleTextDelete(textElement.id)
+								}
 							/>
-						</div>
-					</div>
-
-					<div className="space-y-6">
-						<div>
-							<h3 className="text-lg font-semibold mb-2 flex items-center">
-								<Palette className="mr-2 h-5 w-5 text-violet-600" />
-								Customize Faces
-							</h3>
-							<div className="p-4 border rounded-lg bg-slate-50">
-								<div className="mb-4 space-y-1">
-									<label
-										htmlFor="face-select"
-										className="text-sm font-medium text-slate-700"
-									>
-										Select Face
-									</label>
-									<Select
-										onValueChange={handleFaceSelect}
-										value={selectedFace || ''}
-									>
-										<SelectTrigger id="face-select">
-											<SelectValue placeholder="Choose a face" />
-										</SelectTrigger>
-										<SelectContent>
-											{FACE_NAMES.map((face) => (
-												<SelectItem
-													key={face}
-													value={face}
-												>
-													{face}
-												</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
-								</div>
-
-								{selectedFace && (
-									<div className="space-y-3">
-										<div className="space-y-1">
-											<label
-												htmlFor="color-picker"
-												className="text-sm font-medium text-slate-700"
-											>
-												Color for{' '}
-												<span className="font-semibold">
-													{selectedFace}
-												</span>
-											</label>
-											<Input
-												id="color-picker"
-												type="color"
-												value={selectedColor}
-												onChange={handleColorChange}
-												className="w-full h-10 p-1"
-											/>
-										</div>
-										<Button
-											onClick={handleApplyColor}
-											className="w-full bg-violet-600 hover:bg-violet-700"
-										>
-											Apply Color to {selectedFace}
-										</Button>
-									</div>
-								)}
+						))}
+					{/* Saving overlay for viewport */}
+					{isSaving && (
+						<div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm z-10">
+							<div className="flex flex-col items-center gap-2 p-4 bg-slate-800/80 rounded-lg shadow-xl">
+								<div className="w-10 h-10 border-4 border-slate-600 border-t-green-500 rounded-full animate-spin"></div>
+								<p className="text-sm font-medium text-slate-200">
+									Saving changes...
+								</p>
 							</div>
 						</div>
-						<Button className="w-full bg-green-600 hover:bg-green-700">
-							<Save className="mr-2 h-4 w-4" />
-							Save All Changes
-						</Button>
-					</div>
-				</CardContent>
-				<CardFooter className="p-6 border-t text-sm text-muted-foreground">
-					<p>
-						Click on a face in the preview or select from the
-						dropdown to change its color. Remember to save your
-						changes.
-					</p>
-				</CardFooter>
-			</Card>
+					)}
+				</main>
+			</div>
 		</div>
 	);
 }

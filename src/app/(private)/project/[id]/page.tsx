@@ -15,7 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { AlertTriangle, RefreshCw, Check } from 'lucide-react';
 import { GeneratingDesignsLoader } from '@/components/GeneratingDesignsLoader';
 import OBJModelViewer from '@/components/preview/DesignPreview3D';
-
+import DxfParserComponent from '@/components/DxfParserComponent';
 interface Project {
 	_id: string;
 	status: 'generating' | 'review' | 'error';
@@ -54,6 +54,18 @@ export default function ProjectPage() {
 				}
 				const data = await response.json();
 				setProject(data);
+				if (
+					data.status === 'review' &&
+					data.generatedDesignVariations &&
+					data.generatedDesignVariations.length === 1
+				) {
+					const singleVariation = data.generatedDesignVariations[0];
+					if (singleVariation && singleVariation.variationId) {
+						router.push(
+							`/project/${data._id}/edit/${singleVariation.variationId}`
+						);
+					}
+				}
 			} catch (err) {
 				setError(
 					err instanceof Error
@@ -79,7 +91,7 @@ export default function ProjectPage() {
 			clearInterval(pollInterval);
 			isPolling.current = false;
 		};
-	}, [params, project?.status]);
+	}, [params, project?.status, router]);
 
 	const getStatusBadge = () => {
 		switch (project?.status) {
@@ -181,7 +193,7 @@ export default function ProjectPage() {
 						<Alert variant="destructive" className="mb-6">
 							<AlertTriangle className="h-4 w-4" />
 							<AlertTitle>Generation Failed</AlertTitle>
-							<AlertDescription>
+							<AlertDescription>	
 								There was an error generating your design.
 								Please try again or contact support if the issue
 								persists.
@@ -196,12 +208,7 @@ export default function ProjectPage() {
 									(variation, index) => (
 										<div
 											key={variation.variationId}
-											className="space-y-4 cursor-pointer hover:shadow-xl transition-shadow p-4 rounded-lg border border-slate-200"
-											onClick={() =>
-												router.push(
-													`/project/${project._id}/edit/${variation.variationId}`
-												)
-											}
+											className="space-y-4 p-4 rounded-lg border border-slate-200"
 										>
 											<h3 className="text-lg font-semibold">
 												Design Variation {index + 1}
@@ -215,13 +222,23 @@ export default function ProjectPage() {
 													}
 												/>
 											</div>
+											<Button
+												onClick={() =>
+													router.push(
+														`/project/${project._id}/edit/${variation.variationId}`
+													)
+												}
+												className="w-full mt-2"
+											>
+												Select Variant
+											</Button>
 										</div>
 									)
 								)}
 							</div>
 						</div>
 					)}
-				</CardContent>
+					</CardContent>
 
 				{project?.status === 'review' && (
 					<CardFooter className="flex justify-between border-t p-6 bg-slate-50">
@@ -230,10 +247,6 @@ export default function ProjectPage() {
 							onClick={() => router.push('/projects')}
 						>
 							Back to Projects
-						</Button>
-						<Button className="bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700">
-							<Check className="mr-2 h-4 w-4" />
-							Use This Design
 						</Button>
 					</CardFooter>
 				)}
