@@ -1,116 +1,88 @@
-// ... existing code ...
-import mongoose, { ObjectId, Schema, model, Document } from 'mongoose';
+import mongoose, { ObjectId, Schema, model } from 'mongoose';
 
-// Interface for individual design elements on a die-line section
-export interface ISectionDesign {
-	_id: false; // To prevent Mongoose from creating _id for sub-documents if not needed as top-level
-	sectionName: string; // e.g., "frontPanel", "sidePanelLeft", "lidTop"
-	designOutputUrl?: string; // URL to the AI-generated image/texture for this section (from Flux)
-	isSolidColor: boolean; // If true, this section is a solid color, not AI-generated
-	solidColorValue?: string; // Hex color if isSolidColor is true (e.g., "#FFFFFF")
-	// Potentially add coordinates/mask info here if needed later for precise programmatic overlays,
-	// though initially, we planned to handle overlays in the app logic.
+// Interface for Face Properties (stored in DB)
+export interface IFacePropertiesDB {
+	faceName: string;
+	isSolidColor: boolean;
+	solidColorValue?: string;
+	designUrl?: string;
+	texture?: string;
 }
 
-// Interface for one complete design variation (composed of multiple section designs)
-export interface IDesignVariation {
-	_id: false;
-	variationId: string; // Unique ID for this variation (e.g., UUID or another ObjectId string)
-	sections: ISectionDesign[];
-	// previewImageUrl?: string; // Optional: A pre-rendered flat preview of the assembled dieline for this variation
+// Interface for Scale/Rotation (stored in DB)
+export interface IScaleRotation {
+	x: number;
+	y: number;
+	z: number;
 }
 
-// Interface for user-provided inputs
-export interface IUserInputs {
-	_id: false;
-	businessName: string;
-	logoUrl: string; // URL to uploaded logo image
-	colors: string[]; // Array of brand colors (hex, e.g., ["#FF0000", "#00FF00"])
-	tagline?: string;
-	styleCue?: string; // e.g., "modern", "vintage", "minimalist"
+// Interface for Model Properties (stored in DB)
+export interface IModelProperties {
+	modelType: string;
+	modelPath: string;
+	scale: IScaleRotation;
+	rotation: IScaleRotation;
+	faces: IFacePropertiesDB[];
+	version?: number;
+	lastConfigEdited?: Date;
 }
 
-export interface ProjectDocument extends Document {
-	// Extend Mongoose Document
+// Interface for project document
+export interface ProjectDocument {
 	_id: ObjectId;
-	userId: ObjectId; // Reference to the user
-
-	userInputs: IUserInputs;
-
-	packagingType: string; // e.g., "burgerClamshell", "coffeeCup", "frenchFryCarton"
-
-	generatedDesignVariations: IDesignVariation[];
-	selectedVariationId?: string; // The variationId of the user's chosen design
-
-	// Status & Metadata
-	status: 'pending' | 'generating' | 'review' | 'completed' | 'error';
+	userId: ObjectId;
+	model: IModelProperties;
+	status: string;
 	createdAt: Date;
 	updatedAt: Date;
 }
 
-// Sub-schema for ISectionDesign
-const SectionDesignSchema = new Schema<ISectionDesign>(
+// Schema for Face Properties
+const FacePropertiesSchema = new Schema<IFacePropertiesDB>(
 	{
-		sectionName: { type: String, required: true },
-		designOutputUrl: { type: String, required: false },
-		isSolidColor: { type: Boolean, required: true, default: false },
-		solidColorValue: { type: String, required: false },
+		faceName: { type: String, required: true },
+		isSolidColor: { type: Boolean, required: true },
+		solidColorValue: { type: String },
+		designUrl: { type: String },
+		texture: { type: String },
 	},
 	{ _id: false }
 );
 
-// Sub-schema for IDesignVariation
-const DesignVariationSchema = new Schema<IDesignVariation>(
+// Schema for Scale/Rotation
+const ScaleRotationSchema = new Schema<IScaleRotation>(
 	{
-		variationId: {
-			type: String,
-			required: true,
-			default: () => new mongoose.Types.ObjectId().toHexString(), // Auto-generate a unique ID
-		},
-		sections: [SectionDesignSchema],
-		// previewImageUrl: { type: String, required: false },
+		x: { type: Number, required: true },
+		y: { type: Number, required: true },
+		z: { type: Number, required: true },
 	},
 	{ _id: false }
 );
 
-// Sub-schema for IUserInputs
-const UserInputsSchema = new Schema<IUserInputs>(
-	{
-		businessName: { type: String, required: true },
-		logoUrl: { type: String, required: true },
-		colors: [{ type: String, required: true }],
-		tagline: { type: String, required: false },
-		styleCue: { type: String, required: false },
-	},
-	{ _id: false }
-);
+// Schema for Model Properties
+const ModelPropertiesSchema = new Schema<IModelProperties>({
+	modelType: { type: String, required: true },
+	modelPath: { type: String, required: true },
+	scale: { type: ScaleRotationSchema, required: true },
+	rotation: { type: ScaleRotationSchema, required: true },
+	faces: { type: [FacePropertiesSchema], default: [] },
+	version: { type: Number, default: 1 },
+	lastConfigEdited: { type: Date, default: Date.now },
+});
 
+// Main project schema
 const ProjectSchema = new Schema<ProjectDocument>(
 	{
 		userId: {
 			type: Schema.Types.ObjectId,
-			ref: 'User', // Assuming you have a User model
+			ref: 'User',
 			required: true,
 		},
-		userInputs: { type: UserInputsSchema, required: true },
-		packagingType: {
-			type: String,
-			required: true,
-			// enum: ['burgerClamshell', 'coffeeCup', 'frenchFryCarton'], // Add more as you expand
-		},
-		generatedDesignVariations: [DesignVariationSchema],
-		selectedVariationId: { type: String, required: false },
-		status: {
-			type: String,
-			required: true,
-			enum: ['pending', 'generating', 'review', 'completed', 'error'],
-			default: 'pending',
-		},
-		// brandedTextureUrl: { type: String, required: false }, // Awaiting clarification
-		// modelUrl: { type: String, required: false },         // Awaiting clarification
+		model: { type: ModelPropertiesSchema, required: true },
+		status: { type: String, required: true, default: 'draft' },
 	},
 	{
-		timestamps: true, // Automatically adds createdAt and updatedAt
+		timestamps: true,
 	}
 );
 

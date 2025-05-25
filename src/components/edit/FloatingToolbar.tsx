@@ -13,16 +13,20 @@ import {
 } from '@/components/ui/select';
 
 // Define ActiveTool type directly here or import from a shared types file if available
-export type ActiveTool = 'color' | 'measurements' | 'text' | null;
+export type ActiveTool = 'color' | 'measurements' | 'text' | 'design' | null;
 
 interface FloatingToolbarProps {
 	activeTool: ActiveTool;
-	onToggleTool: (tool: ActiveTool) => void;
+	onSetTool: (tool: ActiveTool) => void;
 	dropperColor: string;
 	onDropperColorChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
 	modelScale: { x: number; y: number; z: number };
 	onScaleChange: (axis: 'x' | 'y' | 'z', value: string) => void;
+	modelRotation: { x: number; y: number; z: number };
+	onRotationChange: (axis: 'x' | 'y' | 'z', value: string) => void;
 	onShowInstructions: () => void;
+	isFaceSelected: boolean;
+	setShowTextModal: (state: boolean) => void;
 	textSettings?: {
 		font: string;
 		size: number;
@@ -35,13 +39,17 @@ interface FloatingToolbarProps {
 
 const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
 	activeTool,
-	onToggleTool,
+	onSetTool,
 	dropperColor,
 	onDropperColorChange,
 	modelScale,
 	onScaleChange,
+	modelRotation,
+	onRotationChange,
 	onShowInstructions,
+	isFaceSelected,
 	textSettings,
+	setShowTextModal
 }) => {
 	return (
 		<div className="fixed top-16 left-1/4 z-30 p-2 bg-slate-700/80 backdrop-blur-sm rounded-md shadow-xl flex flex-col space-y-3">
@@ -49,7 +57,7 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
 			<Button
 				variant={activeTool === null ? 'secondary' : 'ghost'}
 				size="icon"
-				onClick={() => onToggleTool(null)}
+				onClick={() => onSetTool(null)}
 				className={`hover:bg-slate-600/50 ${
 					activeTool === null
 						? 'bg-slate-600 text-white'
@@ -64,7 +72,7 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
 			<Button
 				variant={activeTool === 'color' ? 'secondary' : 'ghost'}
 				size="icon"
-				onClick={() => onToggleTool('color')}
+				onClick={() => onSetTool('color')}
 				className={`hover:bg-violet-600/50 ${
 					activeTool === 'color'
 						? 'bg-violet-600 text-white'
@@ -101,7 +109,7 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
 			<Button
 				variant={activeTool === 'measurements' ? 'secondary' : 'ghost'}
 				size="icon"
-				onClick={() => onToggleTool('measurements')}
+				onClick={() => onSetTool('measurements')}
 				className={`hover:bg-orange-500/50 ${
 					activeTool === 'measurements'
 						? 'bg-orange-600 text-white'
@@ -175,90 +183,144 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
 				</div>
 			)}
 
-			{/* Text Tool */}
-			<Button
-				variant={activeTool === 'text' ? 'secondary' : 'ghost'}
-				size="icon"
-				onClick={() => onToggleTool('text')}
-				className={`hover:bg-blue-500/50 ${
-					activeTool === 'text'
-						? 'bg-blue-600 text-white'
-						: 'text-slate-300'
-				}`}
-				title="Add Text"
-			>
-				<Type className="h-5 w-5" />
-			</Button>
-			{activeTool === 'text' && textSettings && (
-				<div className="p-2 bg-slate-600/50 rounded space-y-2">
-					<p className="text-xs text-slate-300 mb-1 font-medium">
-						Text Settings
-					</p>
-					<div className="space-y-2">
-						<div>
-							<label className="text-xs text-slate-300 mb-1 block">
-								Font
-							</label>
-							<Select
-								value={textSettings.font}
-								onValueChange={textSettings.onFontChange}
-							>
-								<SelectTrigger className="w-full h-8 bg-slate-500 border-slate-400 text-slate-100 text-xs">
-									<SelectValue placeholder="Select font" />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="Arial">Arial</SelectItem>
-									<SelectItem value="Helvetica">
-										Helvetica
-									</SelectItem>
-									<SelectItem value="Times New Roman">
-										Times New Roman
-									</SelectItem>
-									<SelectItem value="Courier New">
-										Courier New
-									</SelectItem>
-								</SelectContent>
-							</Select>
-						</div>
-						<div>
-							<label className="text-xs text-slate-300 mb-1 block">
-								Size
-							</label>
-							<Input
-								type="number"
-								value={textSettings.size}
-								onChange={(e) =>
-									textSettings.onSizeChange(
-										Number(e.target.value)
-									)
-								}
-								className="w-full h-8 p-1 bg-slate-500 border-slate-400 text-slate-100 text-xs"
-								min="8"
-								max="72"
-							/>
-						</div>
-						<div>
-							<label className="text-xs text-slate-300 mb-1 block">
-								Color
-							</label>
-							<div className="flex items-center space-x-2">
-								<Input
-									type="color"
-									value={textSettings.color}
-									onChange={(e) =>
-										textSettings.onColorChange(
-											e.target.value
-										)
-									}
-									className="w-16 h-8 p-0.5 bg-slate-500 border-slate-400 cursor-pointer rounded"
-								/>
-								<span className="text-xs text-slate-200 bg-slate-500 px-2 py-1 rounded">
-									{textSettings.color}
-								</span>
-							</div>
-						</div>
+			{/* Model Rotation Controls */}
+			<div className="mt-4 space-y-2">
+				<h3 className="text-sm font-medium text-slate-300">Rotation</h3>
+				<div className="space-y-2">
+					<div className="flex items-center gap-2">
+						<label className="text-xs text-slate-400">X:</label>
+						<input
+							type="number"
+							value={modelRotation.x}
+							onChange={(e) =>
+								onRotationChange('x', e.target.value)
+							}
+							className="w-16 px-2 py-1 bg-slate-700 rounded text-sm"
+							step="1"
+						/>
+					</div>
+					<div className="flex items-center gap-2">
+						<label className="text-xs text-slate-400">Y:</label>
+						<input
+							type="number"
+							value={modelRotation.y}
+							onChange={(e) =>
+								onRotationChange('y', e.target.value)
+							}
+							className="w-16 px-2 py-1 bg-slate-700 rounded text-sm"
+							step="1"
+						/>
+					</div>
+					<div className="flex items-center gap-2">
+						<label className="text-xs text-slate-400">Z:</label>
+						<input
+							type="number"
+							value={modelRotation.z}
+							onChange={(e) =>
+								onRotationChange('z', e.target.value)
+							}
+							className="w-16 px-2 py-1 bg-slate-700 rounded text-sm"
+							step="1"
+						/>
 					</div>
 				</div>
+			</div>
+
+			{/* Text Tool */}
+			{isFaceSelected && (
+				<>
+					<Button
+						variant={activeTool === 'text' ? 'secondary' : 'ghost'}
+						size="icon"
+						onClick={() => {
+							onSetTool('text');
+							setShowTextModal(true);
+						}}
+						className={`hover:bg-blue-500/50 ${
+							activeTool === 'text'
+								? 'bg-blue-600 text-white'
+								: 'text-slate-300'
+						}`}
+						title="Add Text"
+					>
+						<Type className="h-5 w-5" />
+					</Button>
+					{activeTool === 'text' && textSettings && (
+						<div className="p-2 bg-slate-600/50 rounded space-y-2">
+							<p className="text-xs text-slate-300 mb-1 font-medium">
+								Text Settings
+							</p>
+							<div className="space-y-2">
+								<div>
+									<label className="text-xs text-slate-300 mb-1 block">
+										Font
+									</label>
+									<Select
+										value={textSettings.font}
+										onValueChange={
+											textSettings.onFontChange
+										}
+									>
+										<SelectTrigger className="w-full h-8 bg-slate-500 border-slate-400 text-slate-100 text-xs">
+											<SelectValue placeholder="Select font" />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectItem value="Arial">
+												Arial
+											</SelectItem>
+											<SelectItem value="Helvetica">
+												Helvetica
+											</SelectItem>
+											<SelectItem value="Times New Roman">
+												Times New Roman
+											</SelectItem>
+											<SelectItem value="Courier New">
+												Courier New
+											</SelectItem>
+										</SelectContent>
+									</Select>
+								</div>
+								<div>
+									<label className="text-xs text-slate-300 mb-1 block">
+										Size
+									</label>
+									<Input
+										type="number"
+										value={textSettings.size}
+										onChange={(e) =>
+											textSettings.onSizeChange(
+												Number(e.target.value)
+											)
+										}
+										className="w-full h-8 p-1 bg-slate-500 border-slate-400 text-slate-100 text-xs"
+										min="8"
+										max="72"
+									/>
+								</div>
+								<div>
+									<label className="text-xs text-slate-300 mb-1 block">
+										Color
+									</label>
+									<div className="flex items-center space-x-2">
+										<Input
+											type="color"
+											value={textSettings.color}
+											onChange={(e) =>
+												textSettings.onColorChange(
+													e.target.value
+												)
+											}
+											className="w-16 h-8 p-0.5 bg-slate-500 border-slate-400 cursor-pointer rounded"
+										/>
+										<span className="text-xs text-slate-200 bg-slate-500 px-2 py-1 rounded">
+											{textSettings.color}
+										</span>
+									</div>
+								</div>
+							</div>
+						</div>
+					)}
+				</>
 			)}
 
 			{/* Divider */}

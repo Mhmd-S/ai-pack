@@ -1,256 +1,621 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import {
-	Card,
-	CardContent,
-	CardHeader,
-	CardTitle,
-	CardFooter,
-} from '@/components/ui/card';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { AlertTriangle, RefreshCw, Check } from 'lucide-react';
-import { GeneratingDesignsLoader } from '@/components/GeneratingDesignsLoader';
-import OBJModelViewer from '@/components/preview/DesignPreview3D';
-import DxfParserComponent from '@/components/DxfParserComponent';
-interface Project {
-	_id: string;
-	status: 'generating' | 'review' | 'error';
-	userInputs: {
-		businessName: string;
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { AlertTriangle, ArrowLeft, Save, Package } from 'lucide-react';
+import OBJModelEdit from '@/components/edit/DesignEdit3D';
+import FloatingToolbar, { ActiveTool } from '@/components/edit/FloatingToolbar';
+import InstructionsModal from '@/components/edit/InstructionsModal';
+import TextInputModal from '@/components/edit/TextInputModal';
+import { toast } from 'sonner';
+import { Toaster as SonnerToaster } from '@/components/ui/sonner';
+
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from '@/components/ui/select';
+
+interface TextElement {
+	id: string;
+	text: string;
+	position: { x: number; y: number };
+	rotation: { x: number; y: number; z: number };
+	size: { width: number; height: number };
+	font: string;
+	fontSize: number;
+	color: string;
+	faceName: string;
+}
+
+type PackagingObject = {
+	id: string;
+	name: string;
+	path: string;
+};
+
+const AVAILABLE_OBJECTS: PackagingObject[] = [
+	{ id: 'clamshell', name: 'Clamshell Box', path: '/models/clamshell.obj' },
+	{ id: 'burger', name: 'Burger Box', path: '/models/burger.obj' },
+	{ id: 'custom', name: 'Custom Box', path: '/models/custom.obj' },
+];
+
+interface IFaceProperties {
+	faceName: string;
+	isSolidColor: boolean;
+	solidColorValue?: string;
+	designUrl?: string;
+	texture?: string;
+}
+
+interface IModelProperties {
+	modelType: string;
+	modelPath: string;
+	scale: {
+		x: number;
+		y: number;
+		z: number;
 	};
-	generatedDesignVariations: Array<{
-		variationId: string;
-		sections: Array<{
-			sectionName: string;
-			designOutputUrl?: string;
-			isSolidColor: boolean;
-			solidColorValue?: string;
-		}>;
-	}>;
+	rotation: {
+		x: number;
+		y: number;
+		z: number;
+	};
+	faces: IFaceProperties[];
+}
+
+interface Project {
+	_id?: string;
+	status: 'draft' | 'generating' | 'review' | 'error';
+	model: IModelProperties;
 }
 
 export default function ProjectPage() {
 	const params = useParams();
 	const router = useRouter();
+	const searchParams = useSearchParams();
+
+	const projectIdFromPath = params.id as string;
+
 	const [project, setProject] = useState<Project | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [loading, setLoading] = useState(true);
-	const isPolling = useRef(false);
+	const [isSaving, setIsSaving] = useState(false);
+	const [selectedFace, setSelectedFace] = useState<string | null>(null);
+	const [selectedObject, setSelectedObject] = useState<string>(
+		AVAILABLE_OBJECTS[0].id
+	);
+
+	// State for the floating toolbar
+	const [activeTool, setActiveTool] = useState<ActiveTool>(null);
+	const [dropperColor, setDropperColor] = useState<string>('#FFFFFF');
+
+	// State for measurements (scale)
+	const [modelScale, setModelScale] = useState<{
+		x: number;
+		y: number;
+		z: number;
+	}>({ x: 1, y: 1, z: 1 });
+
+	const [modelRotation, setModelRotation] = useState<{
+		x: number;
+		y: number;
+		z: number;
+	}>({ x: 0, y: 0, z: 0 });
+
+	const [showInstructionsModal, setShowInstructionsModal] = useState(false);
+	const [showTextModal, setShowTextModal] = useState(false);
+	const [textElements, setTextElements] = useState<TextElement[]>([]);
+
+	const isNewProject = useMemo(
+		() => projectIdFromPath === 'new',
+		[projectIdFromPath]
+	);
+
+	const initializeNewProject = useCallback(
+		(modelTypeFromQuery: string) => {
+			const initialModel = AVAILABLE_OBJECTS.find(
+				(obj) => obj.id === modelTypeFromQuery
+			);
+			if (!initialModel) {
+				setError(`Invalid model type: ${modelTypeFromQuery}`);
+				setLoading(false);
+				toast.error(
+					`Cannot create project with model type: ${modelTypeFromQuery}`
+				);
+				router.push('/project');
+				return;
+			}
+
+			setProject({
+				status: 'draft',
+				model: {
+					modelType: initialModel.id,
+					modelPath: initialModel.path,
+					scale: { x: 1, y: 1, z: 1 },
+					rotation: { x: 0, y: 0, z: 0 },
+					faces: [],
+				},
+			});
+			setSelectedObject(initialModel.id);
+			setModelScale({ x: 1, y: 1, z: 1 });
+			setModelRotation({ x: 0, y: 0, z: 0 });
+			setLoading(false);
+		},
+		[router]
+	);
+
+	const fetchProject = useCallback(async () => {
+		if (isNewProject) {
+			const modelTypeFromQuery = searchParams.get('modelType');
+			if (modelTypeFromQuery) {
+				initializeNewProject(modelTypeFromQuery);
+			} else {
+				setError('No model type specified for new project.');
+				setLoading(false);
+				toast.error('Missing model type for new project.');
+				router.push('/project');
+			}
+			return;
+		}
+
+		setLoading(true);
+		try {
+			const response = await fetch(`/api/projects/${projectIdFromPath}`);
+			if (!response.ok) {
+				const errorData = await response.json().catch(() => ({}));
+				setError(
+					errorData.error ||
+						`Failed to fetch project data (status: ${response.status})`
+				);
+				toast.error(errorData.error || 'Failed to load project.');
+				setLoading(false);
+				return;
+			}
+			const data = await response.json();
+			setProject(data);
+
+			if (data.model) {
+				setSelectedObject(data.model.modelType);
+				setModelScale(data.model.scale || { x: 1, y: 1, z: 1 });
+				setModelRotation(data.model.rotation || { x: 0, y: 0, z: 0 });
+			}
+		} catch (err) {
+			console.error('Fetch project error:', err);
+			setError(
+				err instanceof Error
+					? err.message
+					: 'An unexpected error occurred while loading project data'
+			);
+			toast.error('Failed to load project data.');
+		} finally {
+			setLoading(false);
+		}
+	}, [
+		projectIdFromPath,
+		isNewProject,
+		searchParams,
+		router,
+		initializeNewProject,
+	]);
 
 	useEffect(() => {
-		const fetchProject = async () => {
-			if (isPolling.current) return;
-			const { id } = params;
-			try {
-				isPolling.current = true;
-				setLoading(true);
-				const response = await fetch(`/api/projects/${id}`);
-				if (!response.ok) {
-					throw new Error('Failed to fetch project');
-				}
-				const data = await response.json();
-				setProject(data);
-				if (
-					data.status === 'review' &&
-					data.generatedDesignVariations &&
-					data.generatedDesignVariations.length === 1
-				) {
-					const singleVariation = data.generatedDesignVariations[0];
-					if (singleVariation && singleVariation.variationId) {
-						router.push(
-							`/project/${data._id}/edit/${singleVariation.variationId}`
-						);
-					}
-				}
-			} catch (err) {
-				setError(
-					err instanceof Error
-						? err.message
-						: 'Failed to load project'
-				);
-			} finally {
-				isPolling.current = false;
-				setLoading(false);
-			}
-		};
-
 		fetchProject();
+	}, [fetchProject]);
 
-		// Poll for updates if project is still generating
-		const pollInterval = setInterval(() => {
-			if (project?.status === 'generating') {
-				fetchProject();
-			}
-		}, 5000);
+	const handleObjectChange = async (value: string) => {
+		if (!AVAILABLE_OBJECTS) {
+			toast.error('Object list not available');
+			return;
+		}
 
-		return () => {
-			clearInterval(pollInterval);
-			isPolling.current = false;
+		const selectedObj = AVAILABLE_OBJECTS.find((obj) => obj.id === value);
+		if (!selectedObj) {
+			toast.error('Invalid object selected');
+			return;
+		}
+
+		setSelectedObject(value);
+		if (!project) return;
+
+		const updatedModelProperties: IModelProperties = {
+			...project.model,
+			modelType: value,
+			modelPath: selectedObj.path,
 		};
-	}, [params, project?.status, router]);
 
-	const getStatusBadge = () => {
-		switch (project?.status) {
-			case 'generating':
-				return (
-					<Badge className="bg-amber-100 text-amber-800 border-0 px-3 py-1">
-						<div className="flex items-center gap-1.5">
-							<div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></div>
-							Generating
-						</div>
-					</Badge>
+		if (isNewProject || !project._id) {
+			setProject({
+				...project,
+				model: updatedModelProperties,
+			});
+			toast.info(
+				`Model changed to ${selectedObj.name}. Save to persist.`
+			);
+			return;
+		}
+
+		try {
+			setIsSaving(true);
+			const response = await fetch(`/api/projects/${project._id}`, {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ model: updatedModelProperties }),
+			});
+
+			if (!response.ok) {
+				const errorData = await response.json().catch(() => ({}));
+				throw new Error(
+					errorData.error || 'Failed to update model type on server'
 				);
-			case 'review':
-				return (
-					<Badge className="bg-green-100 text-green-800 border-0 px-3 py-1">
-						<div className="flex items-center gap-1.5">
-							<div className="w-2 h-2 rounded-full bg-green-500"></div>
-							Ready for Review
-						</div>
-					</Badge>
-				);
-			case 'error':
-				return (
-					<Badge className="bg-red-100 text-red-800 border-0 px-3 py-1">
-						<div className="flex items-center gap-1.5">
-							<div className="w-2 h-2 rounded-full bg-red-500"></div>
-							Error
-						</div>
-					</Badge>
-				);
-			default:
-				return null;
+			}
+
+			const updatedProject = await response.json();
+			setProject(updatedProject);
+			toast.success('Model type updated successfully on server');
+		} catch (err) {
+			console.error('Error updating model type:', err);
+			toast.error(
+				err instanceof Error
+					? err.message
+					: 'Failed to update model type'
+			);
+			setSelectedObject(
+				project.model?.modelType || AVAILABLE_OBJECTS[0].id
+			);
+		} finally {
+			setIsSaving(false);
 		}
 	};
 
-	if (loading && !project) {
+	const handleFaceClick = useCallback(
+		(faceName: string) => {
+			setSelectedFace(faceName);
+			if (!project) return;
+
+			const currentFaces = project.model.faces || [];
+
+			if (activeTool === 'color') {
+				const faceExists = currentFaces.some(
+					(f) => f.faceName === faceName
+				);
+
+				let updatedFaces;
+				if (faceExists) {
+					updatedFaces = currentFaces.map((face) => {
+						if (face.faceName === faceName) {
+							return {
+								...face,
+								isSolidColor: true,
+								solidColorValue: dropperColor,
+								designUrl: undefined,
+								texture: undefined,
+							};
+						}
+						return face;
+					});
+				} else {
+					updatedFaces = [
+						...currentFaces,
+						{
+							faceName,
+							isSolidColor: true,
+							solidColorValue: dropperColor,
+						},
+					];
+				}
+
+				setProject({
+					...project,
+					model: {
+						...project.model,
+						faces: updatedFaces,
+					},
+				});
+			} else if (activeTool === 'design') {
+				toast.info(
+					'Design upload functionality coming soon. Save your project first.'
+				);
+			} else {
+				const face = currentFaces.find((f) => f.faceName === faceName);
+				if (face?.isSolidColor && face.solidColorValue) {
+					setDropperColor(face.solidColorValue);
+				} else {
+					setDropperColor('#FFFFFF');
+				}
+			}
+		},
+		[activeTool, dropperColor, project]
+	);
+
+	const handleDropperColorChange = (
+		event: React.ChangeEvent<HTMLInputElement>
+	) => {
+		setDropperColor(event.target.value);
+	};
+
+	const handleSaveChanges = async () => {
+		if (!project) {
+			toast.error('Cannot Save: No project data available.');
+			return;
+		}
+		setIsSaving(true);
+
+		const projectPayload: Omit<Project, '_id'> & { _id?: string } = {
+			...project,
+			status: project.status || 'draft',
+			model: {
+				...project.model,
+				scale: modelScale,
+				rotation: modelRotation,
+			},
+		};
+		if (isNewProject || !projectPayload._id) {
+			delete projectPayload._id;
+		}
+
+		try {
+			let response;
+			let newProjectId = project._id;
+
+			if (isNewProject || !project._id) {
+				response = await fetch('/api/projects', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify(projectPayload),
+				});
+			} else {
+				response = await fetch(`/api/projects/${project._id}`, {
+					method: 'PATCH',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify(projectPayload),
+				});
+			}
+
+			if (!response.ok) {
+				const errorData = await response.json().catch(() => ({}));
+				throw new Error(
+					errorData.error || 'Failed to save changes to server'
+				);
+			}
+
+			const savedProject = await response.json();
+			setProject(savedProject);
+
+			if ((isNewProject || !project._id) && savedProject._id) {
+				newProjectId = savedProject._id;
+				router.replace(`/project/${newProjectId}`, { scroll: false });
+				toast.success('Project created and saved successfully!');
+			} else {
+				toast.success('Your changes have been saved.');
+			}
+		} catch (err) {
+			console.error('Error saving changes:', err);
+			toast.error(
+				err instanceof Error ? err.message : 'Could not save changes'
+			);
+		} finally {
+			setIsSaving(false);
+		}
+	};
+
+	const handleSetTool = (tool: ActiveTool) => {
+		if (activeTool === tool) {
+			setActiveTool(null);
+		} else {
+			setActiveTool(tool);
+		}
+	};
+
+	const handleScaleChange = (axis: 'x' | 'y' | 'z', value: string) => {
+		const numericValue = parseFloat(value);
+		if (!isNaN(numericValue)) {
+			setModelScale((prevScale) => ({
+				...prevScale,
+				[axis]: numericValue,
+			}));
+		}
+	};
+
+	const handleRotationChange = (axis: 'x' | 'y' | 'z', value: string) => {
+		const numericValue = parseFloat(value);
+		if (!isNaN(numericValue)) {
+			setModelRotation((prevRotation) => ({
+				...prevRotation,
+				[axis]: numericValue,
+			}));
+		}
+	};
+
+	const handleTextSubmit = (
+		text: string,
+		fontSize: number,
+		fontFamily: string
+	) => {
+		if (!selectedFace) return;
+
+		const newTextElement: TextElement = {
+			id: Math.random().toString(36).substr(2, 9),
+			text,
+			position: { x: 0, y: 0 },
+			rotation: { x: 0, y: 0, z: 0 },
+			size: {
+				width: text.length * fontSize * 0.6,
+				height: fontSize * 1.2,
+			},
+			font: fontFamily,
+			fontSize,
+			color: '#000000',
+			faceName: selectedFace,
+		};
+
+		setTextElements((prev) => [...prev, newTextElement]);
+	};
+
+	if (loading) {
 		return (
-			<div className="flex flex-col items-center justify-center min-h-[100vh] p-6">
-				<GeneratingDesignsLoader />
-				<p className="mt-4 text-muted-foreground">
-					Loading project details...
-				</p>
+			<div className="flex flex-col items-center justify-center h-screen bg-slate-900 text-slate-300">
+				<div className="w-12 h-12 border-4 border-slate-700 border-t-violet-500 rounded-full animate-spin" />
+				<p className="mt-4">Loading Design Editor...</p>
 			</div>
 		);
 	}
 
-	if (error) {
+	if (error && !isSaving) {
 		return (
-			<div className="max-w-4xl mx-auto p-6">
-				<Alert variant="destructive" className="mb-6">
-					<AlertTriangle className="h-4 w-4" />
-					<AlertTitle>Error</AlertTitle>
+			<div className="flex flex-col items-center justify-center h-screen bg-slate-900 text-slate-300 p-6">
+				<Alert
+					variant="destructive"
+					className="bg-red-800/20 border-red-700 text-red-300 max-w-md w-full"
+				>
+					<AlertTriangle className="h-5 w-5 text-red-400" />
+					<AlertTitle className="text-red-400">Error</AlertTitle>
 					<AlertDescription>{error}</AlertDescription>
 				</Alert>
-				<Button onClick={() => router.push('/projects')}>
-					Back to Projects
+			</div>
+		);
+	}
+
+	if (!project && !loading && !error) {
+		return (
+			<div className="flex flex-col items-center justify-center h-screen bg-slate-900 text-slate-300">
+				<p>Project data could not be initialized.</p>
+				<Button
+					variant="outline"
+					className="mt-4 border-slate-600 hover:bg-slate-700 hover:text-slate-200"
+					onClick={() => router.push('/project')}
+				>
+					<ArrowLeft className="mr-2 h-4 w-4" />
+					Back to Model Selection
 				</Button>
 			</div>
 		);
 	}
 
-	const currentDesign = project?.generatedDesignVariations[0];
+	if (!project) {
+		return (
+			<div className="flex flex-col items-center justify-center h-screen bg-slate-900 text-slate-300">
+				<p>Loading or an error occurred. Please try again.</p>
+				<Button
+					variant="outline"
+					onClick={() => router.push('/project')}
+				>
+					Back to selection
+				</Button>
+			</div>
+		);
+	}
+
+	const faceColorMap = project.model.faces.reduce<Record<string, string>>(
+		(acc, face) => {
+			if (face.isSolidColor && face.solidColorValue) {
+				acc[face.faceName] = face.solidColorValue;
+			}
+			return acc;
+		},
+		{}
+	);
+
+	const selectedObjectPath =
+		AVAILABLE_OBJECTS?.find((obj) => obj.id === selectedObject)?.path ||
+		AVAILABLE_OBJECTS[0].path;
 
 	return (
-		<div className="max-w-6xl mx-auto p-4 md:p-6">
-			<Card className="shadow-lg border-0">
-				<CardHeader className="p-6 pb-4 border-b rounded-t-lg border-slate-100">
-					<div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-						<div>
-							<CardTitle className="text-2xl font-bold bg-gradient-to-r from-violet-700 to-purple-700 bg-clip-text text-transparent">
-								{project?.userInputs?.businessName ||
-									'Project Details'}
-							</CardTitle>
-						</div>
-						<div className="flex items-center gap-2">
-							{getStatusBadge()}
-							{project?.status === 'generating' && (
-								<div className="flex items-center gap-1 text-sm bg-amber-50 text-amber-700 px-2 py-1 rounded-full">
-									<RefreshCw className="h-3 w-3 animate-spin" />
-									<span>Auto-refreshing</span>
-								</div>
-							)}
-						</div>
-					</div>
-				</CardHeader>
-
-				<CardContent className="p-6">
-					{project?.status === 'generating' && (
-						<div className="flex flex-col items-center justify-center py-12">
-							<GeneratingDesignsLoader />
-							<p className="mt-6 text-center text-muted-foreground max-w-md">
-								We&apos;re creating your design. This process
-								typically takes 2-5 minutes.
-							</p>
-						</div>
+		<div className="flex flex-col h-screen bg-slate-800 text-slate-100">
+			<SonnerToaster richColors />
+			{/* Header Area */}
+			<header className="flex items-center justify-between p-3 bg-slate-900 border-b border-slate-700 shadow-md print:hidden">
+				<div className="flex items-center gap-4">
+					{AVAILABLE_OBJECTS && (
+						<Select
+							value={selectedObject}
+							onValueChange={handleObjectChange}
+						>
+							<SelectTrigger className="w-[180px] bg-slate-800 border-slate-700">
+								<Package className="mr-2 h-4 w-4" />
+								<SelectValue placeholder="Select object" />
+							</SelectTrigger>
+							<SelectContent>
+								{AVAILABLE_OBJECTS.map((obj) => (
+									<SelectItem key={obj.id} value={obj.id}>
+										{obj.name}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
 					)}
+					<Button
+						onClick={handleSaveChanges}
+						disabled={isSaving || !project}
+						className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 text-sm disabled:opacity-50"
+					>
+						<Save className="mr-2 h-4 w-4" />
+						{isSaving
+							? 'Saving...'
+							: isNewProject || !project._id
+							? 'Create & Save Project'
+							: 'Save Changes'}
+					</Button>
+				</div>
+			</header>
 
-					{project?.status === 'error' && (
-						<Alert variant="destructive" className="mb-6">
-							<AlertTriangle className="h-4 w-4" />
-							<AlertTitle>Generation Failed</AlertTitle>
-							<AlertDescription>	
-								There was an error generating your design.
-								Please try again or contact support if the issue
-								persists.
-							</AlertDescription>
-						</Alert>
-					)}
+			{/* Main Content Area (Viewport + Sidebar) */}
+			<div className="flex flex-1 overflow-hidden">
+				<FloatingToolbar
+					activeTool={activeTool}
+					onSetTool={handleSetTool}
+					dropperColor={dropperColor}
+					onDropperColorChange={handleDropperColorChange}
+					modelScale={modelScale}
+					onScaleChange={handleScaleChange}
+					modelRotation={modelRotation}
+					onRotationChange={handleRotationChange}
+					onShowInstructions={() => setShowInstructionsModal(true)}
+					isFaceSelected={selectedFace !== null}
+					setShowTextModal={setShowTextModal}
+				/>
 
-					{project?.status === 'review' && currentDesign && (
-						<div className="space-y-6">
-							<div className="grid grid-cols-2 gap-6">
-								{project.generatedDesignVariations.map(
-									(variation, index) => (
-										<div
-											key={variation.variationId}
-											className="space-y-4 p-4 rounded-lg border border-slate-200"
-										>
-											<h3 className="text-lg font-semibold">
-												Design Variation {index + 1}
-											</h3>
-											<div className="h-[200px]">
-												<OBJModelViewer
-													objPath="/glb/untitled.obj"
-													imageUrl={
-														variation.sections[0]
-															?.designOutputUrl
-													}
-												/>
-											</div>
-											<Button
-												onClick={() =>
-													router.push(
-														`/project/${project._id}/edit/${variation.variationId}`
-													)
-												}
-												className="w-full mt-2"
-											>
-												Select Variant
-											</Button>
-										</div>
-									)
-								)}
+				<InstructionsModal
+					isOpen={showInstructionsModal}
+					onOpenChange={setShowInstructionsModal}
+				/>
+				<TextInputModal
+					isOpen={showTextModal}
+					onClose={() => setShowTextModal(false)}
+					onSubmit={handleTextSubmit}
+				/>
+				<main className="flex-1 bg-slate-900 overflow-hidden relative">
+					<OBJModelEdit
+						objPath={selectedObjectPath}
+						onFaceClick={handleFaceClick}
+						faceColors={faceColorMap}
+						selectedFaceName={selectedFace || undefined}
+						modelScaleX={modelScale.x}
+						modelScaleY={modelScale.y}
+						modelScaleZ={modelScale.z}
+						modelRotationX={modelRotation.x}
+						modelRotationY={modelRotation.y}
+						modelRotationZ={modelRotation.z}
+						activeTool={activeTool}
+						textElements={textElements}
+					/>
+					{/* Saving overlay for viewport */}
+					{isSaving && (
+						<div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm z-10">
+							<div className="flex flex-col items-center gap-2 p-4 bg-slate-800/80 rounded-lg shadow-xl">
+								<div className="w-10 h-10 border-4 border-slate-600 border-t-green-500 rounded-full animate-spin"></div>
+								<p className="text-sm font-medium text-slate-200">
+									Saving changes...
+								</p>
 							</div>
 						</div>
 					)}
-					</CardContent>
-
-				{project?.status === 'review' && (
-					<CardFooter className="flex justify-between border-t p-6 bg-slate-50">
-						<Button
-							variant="outline"
-							onClick={() => router.push('/projects')}
-						>
-							Back to Projects
-						</Button>
-					</CardFooter>
-				)}
-			</Card>
+				</main>
+			</div>
 		</div>
 	);
 }

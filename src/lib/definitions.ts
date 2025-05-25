@@ -14,15 +14,56 @@ export const SignupFormSchema = z.object({
 });
 
 export const ProjectFormSchema = z.object({
-	name: z.string().min(1, 'Project name is required'),
-	logoFile: z.any().optional(),
-	primaryColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Invalid color format'),
-	secondaryColor: z
-		.string()
-		.regex(/^#[0-9A-Fa-f]{6}$/, 'Invalid color format'),
-	packagingType: z.enum(['clamshell', 'pizza_box', 'fry_carton']),
-	tagLine: z.string().optional(),
-	styleCue: z.string().optional(),
+	model: z.object({
+		modelType: z.string(),
+		modelPath: z.string(),
+		scale: z.object({
+			x: z.number(),
+			y: z.number(),
+			z: z.number(),
+		}),
+		faces: z.array(
+			z.object({
+				faceName: z.string(),
+				isSolidColor: z.boolean(),
+				solidColorValue: z.string().optional(),
+				designElements: z.array(
+					z.object({
+						type: z.enum(['text', 'image', 'shape']),
+						content: z.object({
+							text: z.string().optional(),
+							imageUrl: z.string().optional(),
+							shapeType: z
+								.enum(['rectangle', 'circle', 'triangle'])
+								.optional(),
+						}),
+						position: z.object({
+							x: z.number(),
+							y: z.number(),
+							z: z.number(),
+						}),
+						scale: z.object({
+							x: z.number(),
+							y: z.number(),
+							z: z.number(),
+						}),
+						style: z.object({
+							color: z.string().optional(),
+							backgroundColor: z.string().optional(),
+							opacity: z.number().optional(),
+							fontFamily: z.string().optional(),
+							fontSize: z.number().optional(),
+							fontWeight: z.string().optional(),
+							borderColor: z.string().optional(),
+							borderWidth: z.number().optional(),
+							borderRadius: z.number().optional(),
+						}),
+						faceName: z.string(),
+					})
+				),
+			})
+		),
+	}),
 });
 
 export type FormState =
@@ -59,7 +100,6 @@ export type User = {
 	password: string;
 };
 
-export const styles = ['engraving', 'linocut', 'line_art', 'line_circuit'] as const;
 
 export const PACKAGING_TYPES = [
 	{ value: 'clamshell', label: 'Clamshell Box' },
@@ -67,3 +107,23 @@ export const PACKAGING_TYPES = [
 	{ value: 'fry_carton', label: 'Fry Carton' },
 ];
 
+// Add cloud storage types
+export type CloudStorageConfig = {
+	provider: 'aws' | 'gcp' | 'azure';
+	bucket: string;
+	region: string;
+	basePath: string;
+};
+
+export type ModelStorage = {
+	baseModelPath: string; // Path to the original OBJ file
+	editedModelPath?: string; // Path to the edited OBJ file
+	version: number;
+	lastEdited: Date;
+	metadata: {
+		originalFileName: string;
+		fileSize: number;
+		mimeType: string;
+		checksum: string;
+	};
+};

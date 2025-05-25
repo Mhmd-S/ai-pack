@@ -19,6 +19,7 @@ interface DraggableTextProps {
 	onSelect: () => void;
 	onUpdate: (updates: Partial<TextElement>) => void;
 	onDelete: () => void;
+	onDrop?: (faceName: string) => void;
 }
 
 const DraggableText: React.FC<DraggableTextProps> = ({
@@ -27,10 +28,12 @@ const DraggableText: React.FC<DraggableTextProps> = ({
 	onSelect,
 	onUpdate,
 	onDelete,
+	onDrop,
 }) => {
 	const [isDragging, setIsDragging] = useState(false);
 	const [isEditing, setIsEditing] = useState(false);
 	const [editText, setEditText] = useState(text.text);
+	const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
 	const textRef = useRef<HTMLDivElement>(null);
 
 	useEffect(() => {
@@ -41,16 +44,28 @@ const DraggableText: React.FC<DraggableTextProps> = ({
 
 	const handleDragStart = (e: React.DragEvent) => {
 		setIsDragging(true);
-		e.dataTransfer.setData('text/plain', ''); // Required for Firefox
+		e.dataTransfer.setData('text/plain', text.id);
+		e.dataTransfer.effectAllowed = 'move';
+
+		// Calculate the offset from the mouse position to the element's top-left corner
+		const rect = (e.target as HTMLElement).getBoundingClientRect();
+		setDragOffset({
+			x: e.clientX - rect.left,
+			y: e.clientY - rect.top,
+		});
 	};
 
 	const handleDragEnd = (e: React.DragEvent) => {
 		setIsDragging(false);
-		const rect = (e.target as HTMLElement).getBoundingClientRect();
+
+		// Calculate new position based on the drop point and initial offset
+		const newX = e.clientX - dragOffset.x;
+		const newY = e.clientY - dragOffset.y;
+
 		onUpdate({
 			position: {
-				x: rect.left,
-				y: rect.top,
+				x: newX,
+				y: newY,
 			},
 		});
 	};
@@ -87,6 +102,10 @@ const DraggableText: React.FC<DraggableTextProps> = ({
 				top: text.position.y,
 				cursor: isDragging ? 'grabbing' : 'grab',
 				zIndex: isSelected ? 1000 : 100,
+				transform: isDragging ? 'scale(1.02)' : 'scale(1)',
+				transition: 'transform 0.1s ease',
+				userSelect: 'none',
+				touchAction: 'none',
 			}}
 			draggable
 			onDragStart={handleDragStart}
@@ -137,6 +156,7 @@ const DraggableText: React.FC<DraggableTextProps> = ({
 						outline: 'none',
 						whiteSpace: 'pre-wrap',
 						wordBreak: 'break-word',
+						pointerEvents: isDragging ? 'none' : 'auto',
 					}}
 				>
 					{isEditing ? editText : text.text}

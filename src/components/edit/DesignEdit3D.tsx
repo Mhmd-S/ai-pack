@@ -1,9 +1,8 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import * as THREE from 'three';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { TextGeometry } from 'three/examples/jsm/geometries/TextGeometry.js';
-import { FontLoader } from 'three/examples/jsm/loaders/FontLoader.js';
+import { ActiveTool } from './FloatingToolbar';
 
 // Blender-style highlight colors and effects
 const HIGHLIGHT_COLOR = new THREE.Color(0xff8c00); // Blender orange
@@ -18,47 +17,52 @@ interface MaterialWithColor extends THREE.Material {
 	emissive?: THREE.Color;
 }
 
-interface TextSettings {
+interface TextElement {
+	id: string;
+	text: string;
+	position: { x: number; y: number };
+	rotation: { x: number; y: number; z: number };
+	size: { width: number; height: number };
 	font: string;
-	size: number;
+	fontSize: number;
 	color: string;
+	faceName: string;
 }
 
 interface OBJModelEditProps {
 	objPath: string;
 	imageUrl?: string; // Primary texture, e.g., for 'top-z'
-	faceColors?: Record<string, string>; // Colors for specific faces
-	onFaceClick?: (faceName: string) => void;
-	selectedFaceName?: string; // New prop for highlighting
-	modelScaleX?: number;
-	modelScaleY?: number;
-	modelScaleZ?: number;
-	activeTool?: 'color' | 'measurements' | 'text' | null;
-	textSettings?: TextSettings;
-	onTextPlace?: (
-		text: string,
-		position: THREE.Vector3,
-		settings: TextSettings
-	) => void;
+	faceColors: Record<string, string>;
+	onFaceClick: (faceName: string) => void;
+	selectedFaceName?: string;
+	modelScaleX: number;
+	modelScaleY: number;
+	modelScaleZ: number;
+	modelRotationX: number;
+	modelRotationY: number;
+	modelRotationZ: number;
+	activeTool: ActiveTool;
+	textElements: TextElement[];
 }
 
 const OBJModelEdit: React.FC<OBJModelEditProps> = ({
 	objPath,
 	imageUrl,
-	faceColors = {},
+	faceColors,
 	onFaceClick,
 	selectedFaceName,
-	modelScaleX = 1,
-	modelScaleY = 1,
-	modelScaleZ = 1,
+	modelScaleX,
+	modelScaleY,
+	modelScaleZ,
+	modelRotationX,
+	modelRotationY,
+	modelRotationZ,
 	activeTool,
-	textSettings,
-	onTextPlace,
+	textElements,
 }) => {
 	const mountRef = useRef<HTMLDivElement>(null);
 	const [isLoading, setIsLoading] = useState(true);
 	const [showNoFacePopup, setShowNoFacePopup] = useState(false);
-	const [textInput, setTextInput] = useState('');
 	const sceneRef = useRef<THREE.Scene | null>(null);
 	const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
 	const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -66,14 +70,15 @@ const OBJModelEdit: React.FC<OBJModelEditProps> = ({
 	const originalMaterialsRef = useRef<Map<string, THREE.Material>>(new Map());
 	const borderMeshesRef = useRef<Map<string, THREE.Group>>(new Map());
 
-	// Function to create border mesh
-	const createBorderMesh = useCallback((mesh: THREE.Mesh) => {
+	// Function to create border mesh which is used for the higlighting of face
+	const createBorderMesh = (mesh: THREE.Mesh) => {
+		// Copy the geometry of the mesh so we can use it to create a new mesh
 		const borderGeometry = mesh.geometry.clone();
 
-		// Create a new group to hold the border mesh
+		// Create a new group to hold the border mesh. We don't need a group but it makes it more extensible and easier to manage if we need to add extra effects(meshes) or different faces but we would need to make the group a state.
 		const borderGroup = new THREE.Group();
 
-		// Create the border mesh
+		// Create the border material, this is used to create the border mesh
 		const borderMaterial = new THREE.MeshBasicMaterial({
 			color: BORDER_COLOR,
 			side: THREE.BackSide,
@@ -81,6 +86,7 @@ const OBJModelEdit: React.FC<OBJModelEditProps> = ({
 			opacity: 0.5,
 		});
 
+		// Create the border mesh, material + geometry = mesh
 		const borderMesh = new THREE.Mesh(borderGeometry, borderMaterial);
 
 		// Scale the border mesh slightly larger
@@ -101,10 +107,10 @@ const OBJModelEdit: React.FC<OBJModelEditProps> = ({
 		}
 
 		return borderGroup;
-	}, []);
+	};
 
 	// Function to update border meshes
-	const updateBorderMeshes = useCallback(() => {
+	const updateBorderMeshes = () => {
 		if (!modelRef.current || !sceneRef.current) return;
 
 		// Remove all existing border meshes
@@ -138,9 +144,9 @@ const OBJModelEdit: React.FC<OBJModelEditProps> = ({
 				}
 			});
 		}
-	}, [selectedFaceName, createBorderMesh]);
+	};
 
-	const applyMaterialToFaces = useCallback(() => {
+	const applyMaterialToFaces = () => {
 		if (!modelRef.current) return;
 
 		const textureLoader = new THREE.TextureLoader();
@@ -325,13 +331,7 @@ const OBJModelEdit: React.FC<OBJModelEditProps> = ({
 					error
 				)
 			);
-	}, [
-		imageUrl,
-		faceColors,
-		selectedFaceName,
-		activeTool,
-		updateBorderMeshes,
-	]);
+	};
 
 	// Main useEffect for scene setup, model loading, and core WebGL elements
 	useEffect(() => {
@@ -388,6 +388,8 @@ const OBJModelEdit: React.FC<OBJModelEditProps> = ({
 
 		const loader = new OBJLoader();
 		setIsLoading(true);
+
+		// Clear the scene and model - remove the old model and reset the materials
 		if (modelRef.current && sceneRef.current) {
 			sceneRef.current.remove(modelRef.current);
 			modelRef.current.traverse((child) => {
@@ -403,12 +405,20 @@ const OBJModelEdit: React.FC<OBJModelEditProps> = ({
 		}
 		originalMaterialsRef.current.clear();
 
+		// Load the new model
 		loader.load(
 			objPath,
 			(object) => {
+				// Mounted means we have a valid scene, renderer, camera, and mount, so all is left to add is the model
 				if (!isMounted || !sceneRef.current) return;
 				modelRef.current = object;
 
+				// We are going to go through each mesh inside the object,
+				// This is so we can apply the same material to the same face when we load the new model
+				// This is because the materials are not stored in the object itself, but in the scene
+				// So we need to store the materials in a map so we can apply the same material to the same face
+				// when we load the new model
+				// FYI A mesh is a single face of the model with a geometry and a material
 				object.traverse((child) => {
 					if (
 						child instanceof THREE.Mesh &&
@@ -435,11 +445,22 @@ const OBJModelEdit: React.FC<OBJModelEditProps> = ({
 						modelScaleY,
 						modelScaleZ
 					);
+					modelRef.current.rotation.set(
+						modelRotationX,
+						modelRotationY,
+						modelRotationZ
+					);
 				}
 
+				// Creating a bounding box around the object and then centering it
+				// A bounding box is a geometrical shape that surrounds the object, generally, the reason we use bounding boxes is because models can be complex and have many faces but bounding boxes are simple shapes that encloses a model and gives us infomration of the size of the model, location, and orientation.
 				const box = new THREE.Box3().setFromObject(object);
+
+				// Getting the center of the bounding box
 				const center = box.getCenter(new THREE.Vector3());
+				// Subtracting the center from the object's position to center the object
 				object.position.sub(center);
+				// Adding the object to the scene
 				sceneRef.current.add(object);
 				setIsLoading(false);
 			},
@@ -480,6 +501,7 @@ const OBJModelEdit: React.FC<OBJModelEditProps> = ({
 		};
 		window.addEventListener('resize', handleResize);
 
+		// Clean up function
 		return () => {
 			isMounted = false;
 			window.removeEventListener('resize', handleResize);
@@ -526,32 +548,34 @@ const OBJModelEdit: React.FC<OBJModelEditProps> = ({
 		if (modelRef.current) {
 			applyMaterialToFaces();
 		}
-	}, [faceColors, imageUrl, selectedFaceName, applyMaterialToFaces]);
+	}, [
+		faceColors,
+		imageUrl,
+		selectedFaceName,
+		activeTool,
+		applyMaterialToFaces,
+	]);
 
 	// Effect to handle model scaling dynamically after initial load
 	useEffect(() => {
 		if (modelRef.current) {
 			modelRef.current.scale.set(modelScaleX, modelScaleY, modelScaleZ);
+			modelRef.current.rotation.set(
+				modelRotationX,
+				modelRotationY,
+				modelRotationZ
+			);
 		}
-	}, [modelScaleX, modelScaleY, modelScaleZ]);
+	}, [
+		modelScaleX,
+		modelScaleY,
+		modelScaleZ,
+		modelRotationX,
+		modelRotationY,
+		modelRotationZ,
+	]);
 
-	// Add new function to handle text placement
-	const handleTextPlacement = useCallback(
-		(position: THREE.Vector3) => {
-			if (!selectedFaceName) {
-				setShowNoFacePopup(true);
-				return;
-			}
-
-			if (!textSettings || !onTextPlace) return;
-
-			onTextPlace(textInput, position, textSettings);
-			setTextInput('');
-		},
-		[selectedFaceName, textSettings, onTextPlace, textInput]
-	);
-
-	// Modify click handler to handle text placement
+	// Modify click handler
 	useEffect(() => {
 		const currentMount = mountRef.current;
 		const currentModel = modelRef.current;
@@ -561,14 +585,23 @@ const OBJModelEdit: React.FC<OBJModelEditProps> = ({
 			return;
 		}
 
+		// Raycaster is a class that is used to cast rays from the camera to the scene
+		// It is used to check if the user has clicked on a face of the model
+		// It is also used to check if the user is dragging the model
+		// Helps with mouse picking ( Working out what objects in a 3D space the mouse is over)
 		const raycaster = new THREE.Raycaster();
+		// Mouse is a vector2 that is used to store the position of the mouse (x,y), works in tandem with raycaster object
 		const mouse = new THREE.Vector2();
+
 		let lastClickTime = 0;
-		const CLICK_DELAY = 300; // Minimum time between clicks in milliseconds
 		let isDragging = false;
 		let dragStartTime = 0;
+
+		const CLICK_DELAY = 300; // Minimum time between clicks in milliseconds
 		const DRAG_THRESHOLD = 200; // Time threshold to consider as drag (ms)
-		let dragStartPosition = new THREE.Vector2();
+
+		// Will hold the position of the mouse when the user starts dragging
+		const dragStartPosition = new THREE.Vector2();
 
 		const handlePointerDown = (event: MouseEvent) => {
 			if (!mountRef.current) return;
@@ -624,7 +657,6 @@ const OBJModelEdit: React.FC<OBJModelEditProps> = ({
 				}
 			});
 
-			// Find intersections with all meshes
 			const intersects = raycaster.intersectObjects(meshes, true);
 
 			if (intersects.length > 0) {
@@ -634,11 +666,179 @@ const OBJModelEdit: React.FC<OBJModelEditProps> = ({
 					firstIntersectedObject.name
 				) {
 					if (activeTool === 'text') {
-						handleTextPlacement(intersects[0].point);
-					} else if (onFaceClick) {
-						// Only trigger face click if it's a different face
-						if (firstIntersectedObject.name !== selectedFaceName) {
+						// When text tool is active, show text modal immediately
+						if (onFaceClick) {
 							onFaceClick(firstIntersectedObject.name);
+						}
+					} else if (onFaceClick) {
+						if (
+							firstIntersectedObject.name !== selectedFaceName ||
+							activeTool === null
+						) {
+							onFaceClick(firstIntersectedObject.name);
+
+							// If no tool is active, align camera to the face
+							if (activeTool === null && cameraRef.current) {
+								const faceNormal = new THREE.Vector3();
+								const faceCenter = new THREE.Vector3();
+
+								// Get the face normal at the intersection point
+								const faceIndex = intersects[0].faceIndex;
+
+								if (
+									faceIndex !== undefined &&
+									faceIndex !== null
+								) {
+									// Get the face normal using computeVertexNormals
+									const geometry =
+										firstIntersectedObject.geometry;
+									geometry.computeVertexNormals();
+									const normalAttribute =
+										geometry.getAttribute('normal');
+									const normalX = normalAttribute.getX(
+										faceIndex * 3
+									);
+									const normalY = normalAttribute.getY(
+										faceIndex * 3
+									);
+									const normalZ = normalAttribute.getZ(
+										faceIndex * 3
+									);
+									faceNormal.set(normalX, normalY, normalZ);
+									faceNormal.applyMatrix4(
+										firstIntersectedObject.matrixWorld
+									);
+									faceNormal.normalize();
+
+									// Calculate face center
+									const positionAttribute =
+										geometry.getAttribute('position');
+									const vertices = [];
+
+									// Get the three vertices of the intersected face
+									for (let i = 0; i < 3; i++) {
+										const vertexIndex = geometry.index
+											? geometry.index.getX(
+													faceIndex * 3 + i
+											  )
+											: faceIndex * 3 + i;
+										const x =
+											positionAttribute.getX(vertexIndex);
+										const y =
+											positionAttribute.getY(vertexIndex);
+										const z =
+											positionAttribute.getZ(vertexIndex);
+										vertices.push(
+											new THREE.Vector3(x, y, z)
+										);
+									}
+
+									// Calculate center of the face
+									faceCenter
+										.addVectors(vertices[0], vertices[1])
+										.add(vertices[2])
+										.multiplyScalar(1 / 3);
+
+									// Transform to world space
+									faceCenter.applyMatrix4(
+										firstIntersectedObject.matrixWorld
+									);
+
+									// Get the bounding box of the model
+									const box = new THREE.Box3().setFromObject(
+										modelRef.current
+									);
+									const boxSize = new THREE.Vector3();
+									box.getSize(boxSize);
+
+									// Determine which face was clicked based on the face name
+									const faceName =
+										firstIntersectedObject.name;
+									const cameraDirection = new THREE.Vector3();
+
+
+									// Simple mapping of face names to camera directions
+									if (faceName.includes('top-z')) {
+										cameraDirection.set(0, 1, 0); // Look from top
+									} else if (faceName.includes('bot-z')) {
+										cameraDirection.set(0, -1, 0); // Look from bottom
+									} else if (faceName.includes('-f')) {
+										cameraDirection.set(-1, 0, 0); // Look from front
+									} else if (faceName.includes('-b')) {
+										cameraDirection.set(1, 0, 0); // Look from back
+									} else if (faceName.includes('-l')) {
+										cameraDirection.set(0, 0, -1); // Look from left
+									} else if (faceName.includes('-r')) {
+										cameraDirection.set(0, 0, 1); // Look from right
+									}
+
+									// Calculate new camera position
+									const distance =
+										Math.max(
+											boxSize.x,
+											boxSize.y,
+											boxSize.z
+										) * 2; // Scale distance based on model size
+									const newCameraPosition = faceCenter
+										.clone()
+										.add(
+											cameraDirection.multiplyScalar(
+												distance
+											)
+										);
+
+									// Animate camera movement
+									const startPosition =
+										cameraRef.current.position.clone();
+
+									// Calculate target rotation to look at face center
+									const targetLookAt = faceCenter.clone();
+									const targetPosition = newCameraPosition;
+
+									// Animate over 500ms
+									const duration = 500;
+									const startTime = Date.now();
+
+									const animateCamera = () => {
+										if (!cameraRef.current) return;
+
+										const elapsed = Date.now() - startTime;
+										const progress = Math.min(
+											elapsed / duration,
+											1
+										);
+
+										// Ease in-out function
+										const easeProgress =
+											progress < 0.5
+												? 2 * progress * progress
+												: 1 -
+												  Math.pow(
+														-2 * progress + 2,
+														2
+												  ) /
+														2;
+
+										// Interpolate position
+										cameraRef.current.position.lerpVectors(
+											startPosition,
+											targetPosition,
+											easeProgress
+										);
+
+										// Update look at
+										cameraRef.current.lookAt(targetLookAt);
+
+										if (progress < 1) {
+											requestAnimationFrame(
+												animateCamera
+											);
+										}
+									};
+
+									animateCamera();
+								}
+							}
 						}
 					}
 				}
@@ -663,18 +863,12 @@ const OBJModelEdit: React.FC<OBJModelEditProps> = ({
 				currentMount.removeEventListener('click', handleClick);
 			}
 		};
-	}, [
-		onFaceClick,
-		isLoading,
-		activeTool,
-		handleTextPlacement,
-		selectedFaceName,
-	]);
+	}, [onFaceClick, isLoading, activeTool, selectedFaceName]);
 
-	// Update border meshes when selected face changes
+	// Update border meshes when selected face changes or tool changes
 	useEffect(() => {
 		updateBorderMeshes();
-	}, [selectedFaceName, updateBorderMeshes]);
+	}, [selectedFaceName, activeTool, updateBorderMeshes]);
 
 	// Clean up border meshes on unmount
 	useEffect(() => {
@@ -697,6 +891,112 @@ const OBJModelEdit: React.FC<OBJModelEditProps> = ({
 			borderMeshesRef.current.clear();
 		};
 	}, []);
+
+	// Add text rendering function
+	const renderTextOnFace = useCallback(
+		(face: THREE.Mesh, textElement: TextElement) => {
+			if (!sceneRef.current) return;
+
+			// Create a canvas for text rendering
+			const canvas = document.createElement('canvas');
+			const context = canvas.getContext('2d');
+			if (!context) return;
+
+			// Set canvas size based on text size
+			canvas.width = textElement.size.width;
+			canvas.height = textElement.size.height;
+
+			// Configure text style
+			context.font = `${textElement.fontSize}px ${textElement.font}`;
+			context.fillStyle = textElement.color;
+			context.textAlign = 'center';
+			context.textBaseline = 'middle';
+
+			// Draw text
+			context.fillText(
+				textElement.text,
+				canvas.width / 2,
+				canvas.height / 2
+			);
+
+			// Create texture from canvas
+			const texture = new THREE.CanvasTexture(canvas);
+			texture.needsUpdate = true;
+
+			// Create material with text texture
+			const material = new THREE.MeshBasicMaterial({
+				map: texture,
+				transparent: true,
+				side: THREE.DoubleSide,
+			});
+
+			// Create plane for text
+			const plane = new THREE.Mesh(
+				new THREE.PlaneGeometry(1, 1),
+				material
+			);
+
+			// Create a group to hold both the face and text
+			const group = new THREE.Group();
+
+			// Add the face to the group if it's not already in one
+			if (face.parent) {
+				face.parent.remove(face);
+			}
+			group.add(face);
+
+			// Position and rotate the text plane relative to the face
+			plane.position.set(0, 0, 0.01); // Slightly offset from face to prevent z-fighting
+			plane.scale.set(
+				textElement.size.width / 100,
+				textElement.size.height / 100,
+				1
+			);
+
+			// Add text plane to the group
+			group.add(plane);
+
+			// Add the group to the scene
+			sceneRef.current.add(group);
+
+			return plane;
+		},
+		[]
+	);
+
+	// Update text rendering when text elements change
+	useEffect(() => {
+		if (!modelRef.current || !sceneRef.current) return;
+
+		// Remove existing text planes
+		sceneRef.current.children.forEach((child) => {
+			if (child.userData.isTextPlane) {
+				sceneRef.current?.remove(child);
+				if (child instanceof THREE.Mesh) {
+					child.geometry.dispose();
+					if (child.material instanceof THREE.Material) {
+						child.material.dispose();
+					}
+				}
+			}
+		});
+
+		// Render new text elements
+		textElements.forEach((textElement) => {
+			modelRef.current?.traverse((child) => {
+				if (
+					child instanceof THREE.Mesh &&
+					child.name === textElement.faceName
+				) {
+					const textPlane = renderTextOnFace(child, textElement);
+					if (textPlane) {
+						textPlane.userData.isTextPlane = true;
+					}
+				}
+			});
+		});
+	}, [textElements, renderTextOnFace]);
+
 	return (
 		<div style={{ position: 'relative', width: '100%', height: '100%' }}>
 			<div
@@ -730,40 +1030,6 @@ const OBJModelEdit: React.FC<OBJModelEditProps> = ({
 							className="px-4 py-2 bg-violet-600 text-white rounded hover:bg-violet-700 transition-colors"
 						>
 							OK
-						</button>
-					</div>
-				</div>
-			)}
-			{activeTool === 'text' && (
-				<div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20">
-					<div className="flex items-center gap-2 bg-slate-800/90 backdrop-blur-sm p-2 rounded-lg shadow-xl">
-						<input
-							type="text"
-							value={textInput}
-							onChange={(e) => setTextInput(e.target.value)}
-							placeholder="Enter text..."
-							className="px-3 py-1 bg-slate-700 text-slate-200 rounded border border-slate-600 focus:border-violet-500 focus:outline-none"
-						/>
-						<button
-							onClick={() => {
-								if (selectedFaceName) {
-									// Place text at center of view
-									const center = new THREE.Vector3();
-									if (modelRef.current) {
-										const box =
-											new THREE.Box3().setFromObject(
-												modelRef.current
-											);
-										box.getCenter(center);
-									}
-									handleTextPlacement(center);
-								} else {
-									setShowNoFacePopup(true);
-								}
-							}}
-							className="px-3 py-1 bg-violet-600 text-white rounded hover:bg-violet-700 transition-colors"
-						>
-							Place Text
 						</button>
 					</div>
 				</div>
