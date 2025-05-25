@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import * as THREE from 'three';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { DecalGeometry } from 'three/examples/jsm/geometries/DecalGeometry.js';
 import { ActiveTool } from './FloatingToolbar';
 
 // Blender-style highlight colors and effects
@@ -20,7 +21,7 @@ interface MaterialWithColor extends THREE.Material {
 interface TextElement {
 	id: string;
 	text: string;
-	position: { x: number; y: number };
+	position: { x: number; y: number; z: number };
 	rotation: { x: number; y: number; z: number };
 	size: { width: number; height: number };
 	font: string;
@@ -42,7 +43,7 @@ interface OBJModelEditProps {
 	modelRotationY: number;
 	modelRotationZ: number;
 	activeTool: ActiveTool;
-	textElements: TextElement[];
+	textElements: Record<string, DesignElement>;
 }
 
 const OBJModelEdit: React.FC<OBJModelEditProps> = ({
@@ -51,6 +52,7 @@ const OBJModelEdit: React.FC<OBJModelEditProps> = ({
 	faceColors,
 	onFaceClick,
 	selectedFaceName,
+	textElements,
 	modelScaleX,
 	modelScaleY,
 	modelScaleZ,
@@ -58,7 +60,6 @@ const OBJModelEdit: React.FC<OBJModelEditProps> = ({
 	modelRotationY,
 	modelRotationZ,
 	activeTool,
-	textElements,
 }) => {
 	const mountRef = useRef<HTMLDivElement>(null);
 	const [isLoading, setIsLoading] = useState(true);
@@ -110,6 +111,7 @@ const OBJModelEdit: React.FC<OBJModelEditProps> = ({
 	};
 
 	// Function to update border meshes
+		// eslint-disable-next-line
 	const updateBorderMeshes = () => {
 		if (!modelRef.current || !sceneRef.current) return;
 
@@ -146,12 +148,119 @@ const OBJModelEdit: React.FC<OBJModelEditProps> = ({
 		}
 	};
 
+	// Remove linter
+	// eslint-disable-next-line
 	const applyMaterialToFaces = () => {
 		if (!modelRef.current) return;
 
 		const textureLoader = new THREE.TextureLoader();
 		let texturePromise: Promise<THREE.Texture | null> =
 			Promise.resolve(null);
+
+		// Create a canvas for text rendering
+		const canvas = document.createElement('canvas');
+		const context = canvas.getContext('2d');
+		if (!context) return;
+
+		// Function to create text texture
+		const createTextTexture = (textElement: TextElement) => {
+			const { text, font, fontSize, color } = textElement;
+			if (!text) return null;
+
+			// Set canvas size
+			canvas.width = 512;
+			canvas.height = 512;
+
+			// Clear canvas
+			context.clearRect(0, 0, canvas.width, canvas.height);
+
+			// Set text style
+			context.font = `${fontSize}px ${font}`;
+			context.fillStyle = color;
+			context.textAlign = 'center';
+			context.textBaseline = 'middle';
+
+			// Draw text
+			context.fillText(text, canvas.width / 2, canvas.height / 2);
+
+			// Create texture from canvas
+			const texture = new THREE.CanvasTexture(canvas);
+			texture.needsUpdate = true;
+			return texture;
+		};
+
+		// Function to create decal for text
+		const createTextDecal = (
+			mesh: THREE.Mesh,
+			textElement: TextElement,
+			texture: THREE.Texture
+	) => {
+			// Get the center of the mesh
+			const center = new THREE.Vector3();
+			mesh.geometry.computeBoundingBox();
+			mesh.geometry.boundingBox?.getCenter(center);
+			
+			// Use the center as position if no specific position is provided
+			const position = new THREE.Vector3(
+					center.x,
+					center.y,
+					center.z
+			);
+	
+			// Get the face normal
+			const geometry = mesh.geometry;
+			geometry.computeVertexNormals();
+			const normalAttribute = geometry.getAttribute('normal');
+			
+			// Use the first normal as a fallback
+			const normal = new THREE.Vector3();
+			normal.fromBufferAttribute(normalAttribute, 0);
+			normal.applyMatrix4(mesh.matrixWorld);
+			normal.normalize();
+
+			
+			// Calculate orientation
+			const orientation = new THREE.Euler();
+			orientation.setFromQuaternion(
+					new THREE.Quaternion().setFromUnitVectors(
+							new THREE.Vector3(0, 0, -1),
+							normal
+					)
+			);
+	
+			// Use larger size values
+			const size = new THREE.Vector3(
+					10,
+					10,
+					0.01
+			);
+	
+			console.log('DecalGeometry Creation Parameters:', {
+					position: position.toArray(),
+					normal: normal.toArray(),
+					orientation: [orientation.x, orientation.y, orientation.z],
+					size: size.toArray()
+			});
+	
+			const decalGeometry = new DecalGeometry(
+					mesh,
+					position,
+					orientation,
+					size
+			);
+	
+			const decalMaterial = new THREE.MeshBasicMaterial({
+					map: texture,
+					transparent: true,
+					opacity: 1,
+					depthTest: true,
+					depthWrite: false,
+					polygonOffset: true,
+					polygonOffsetFactor: -4,
+			});
+	
+			return new THREE.Mesh(decalGeometry, decalMaterial);
+	};
 
 		if (imageUrl) {
 			texturePromise = new Promise<THREE.Texture | null>(
@@ -295,6 +404,44 @@ const OBJModelEdit: React.FC<OBJModelEditProps> = ({
 						} else {
 							newMaterial.emissive.copy(DEFAULT_EMISSIVE_COLOR);
 							newMaterial.emissiveIntensity = 0;
+						}
+
+						// Handle text elements for this face
+						if (
+							textElements[faceName] &&
+							textElements[faceName].type == 'text'
+						) {
+							console.log(
+								'textElements[faceName].content',
+								textElements[faceName].content
+							);
+							Object.keys(textElements[faceName].content).forEach(
+								(key) => {
+									console.log(
+										'The key',
+										textElements[faceName]
+									);
+									const textTexture = createTextTexture({
+										text: textElements[faceName].content[key],
+										...textElements[faceName],
+									});
+									if (textTexture) {
+										console.log(
+											'textElements[faceName].content[key]',
+											textElements[faceName].content[key]
+										);
+										const decalMesh = createTextDecal(
+											child,
+											{
+												text: textElements[faceName].content[key],
+												...textElements[faceName],
+											},
+											textTexture
+										);
+										child.add(decalMesh);
+									}
+								}
+							);
 						}
 
 						child.material = newMaterial;
@@ -756,12 +903,19 @@ const OBJModelEdit: React.FC<OBJModelEditProps> = ({
 										firstIntersectedObject.name;
 									const cameraDirection = new THREE.Vector3();
 
-
 									// Simple mapping of face names to camera directions
 									if (faceName.includes('top-z')) {
-										cameraDirection.set(cameraDirection.x, 1, cameraDirection.z); // Look from top
+										cameraDirection.set(
+											cameraDirection.x,
+											1,
+											cameraDirection.z
+										); // Look from top
 									} else if (faceName.includes('bot-z')) {
-										cameraDirection.set(cameraDirection.x, -1, cameraDirection.z); // Look from bottom
+										cameraDirection.set(
+											cameraDirection.x,
+											-1,
+											cameraDirection.z
+										); // Look from bottom
 									} else if (faceName.includes('-f')) {
 										cameraDirection.set(-1, 0, 0); // Look from front
 									} else if (faceName.includes('-b')) {
@@ -891,111 +1045,6 @@ const OBJModelEdit: React.FC<OBJModelEditProps> = ({
 			borderMeshesRef.current.clear();
 		};
 	}, []);
-
-	// Add text rendering function
-	const renderTextOnFace = useCallback(
-		(face: THREE.Mesh, textElement: TextElement) => {
-			if (!sceneRef.current) return;
-
-			// Create a canvas for text rendering
-			const canvas = document.createElement('canvas');
-			const context = canvas.getContext('2d');
-			if (!context) return;
-
-			// Set canvas size based on text size
-			canvas.width = textElement.size.width;
-			canvas.height = textElement.size.height;
-
-			// Configure text style
-			context.font = `${textElement.fontSize}px ${textElement.font}`;
-			context.fillStyle = textElement.color;
-			context.textAlign = 'center';
-			context.textBaseline = 'middle';
-
-			// Draw text
-			context.fillText(
-				textElement.text,
-				canvas.width / 2,
-				canvas.height / 2
-			);
-
-			// Create texture from canvas
-			const texture = new THREE.CanvasTexture(canvas);
-			texture.needsUpdate = true;
-
-			// Create material with text texture
-			const material = new THREE.MeshBasicMaterial({
-				map: texture,
-				transparent: true,
-				side: THREE.DoubleSide,
-			});
-
-			// Create plane for text
-			const plane = new THREE.Mesh(
-				new THREE.PlaneGeometry(1, 1),
-				material
-			);
-
-			// Create a group to hold both the face and text
-			const group = new THREE.Group();
-
-			// Add the face to the group if it's not already in one
-			if (face.parent) {
-				face.parent.remove(face);
-			}
-			group.add(face);
-
-			// Position and rotate the text plane relative to the face
-			plane.position.set(0, 0, 0.01); // Slightly offset from face to prevent z-fighting
-			plane.scale.set(
-				textElement.size.width / 100,
-				textElement.size.height / 100,
-				1
-			);
-
-			// Add text plane to the group
-			group.add(plane);
-
-			// Add the group to the scene
-			sceneRef.current.add(group);
-
-			return plane;
-		},
-		[]
-	);
-
-	// Update text rendering when text elements change
-	useEffect(() => {
-		if (!modelRef.current || !sceneRef.current) return;
-
-		// Remove existing text planes
-		sceneRef.current.children.forEach((child) => {
-			if (child.userData.isTextPlane) {
-				sceneRef.current?.remove(child);
-				if (child instanceof THREE.Mesh) {
-					child.geometry.dispose();
-					if (child.material instanceof THREE.Material) {
-						child.material.dispose();
-					}
-				}
-			}
-		});
-
-		// Render new text elements
-		textElements.forEach((textElement) => {
-			modelRef.current?.traverse((child) => {
-				if (
-					child instanceof THREE.Mesh &&
-					child.name === textElement.faceName
-				) {
-					const textPlane = renderTextOnFace(child, textElement);
-					if (textPlane) {
-						textPlane.userData.isTextPlane = true;
-					}
-				}
-			});
-		});
-	}, [textElements, renderTextOnFace]);
 
 	return (
 		<div style={{ position: 'relative', width: '100%', height: '100%' }}>

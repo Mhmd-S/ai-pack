@@ -11,6 +11,7 @@ import InstructionsModal from '@/components/edit/InstructionsModal';
 import TextInputModal from '@/components/edit/TextInputModal';
 import { toast } from 'sonner';
 import { Toaster as SonnerToaster } from '@/components/ui/sonner';
+import { IModelProperties, IFacePropertiesDB } from '@/lib/models/Project';
 
 import {
 	Select,
@@ -19,18 +20,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from '@/components/ui/select';
-
-interface TextElement {
-	id: string;
-	text: string;
-	position: { x: number; y: number };
-	rotation: { x: number; y: number; z: number };
-	size: { width: number; height: number };
-	font: string;
-	fontSize: number;
-	color: string;
-	faceName: string;
-}
 
 type PackagingObject = {
 	id: string;
@@ -44,35 +33,43 @@ const AVAILABLE_OBJECTS: PackagingObject[] = [
 	{ id: 'custom', name: 'Custom Box', path: '/models/custom.obj' },
 ];
 
-interface IFaceProperties {
-	faceName: string;
-	isSolidColor: boolean;
-	solidColorValue?: string;
-	designUrl?: string;
-	texture?: string;
-}
-
-interface IModelProperties {
-	modelType: string;
-	modelPath: string;
-	scale: {
-		x: number;
-		y: number;
-		z: number;
-	};
-	rotation: {
-		x: number;
-		y: number;
-		z: number;
-	};
-	faces: IFaceProperties[];
-}
-
 interface Project {
 	_id?: string;
 	status: 'draft' | 'generating' | 'review' | 'error';
 	model: IModelProperties;
 }
+
+// Add type for DesignElement
+type DesignElement = {
+	type: 'text' | 'image' | 'shape';
+	content: {
+		text?: string;
+		imageUrl?: string;
+		shapeType?: 'rectangle' | 'circle' | 'triangle';
+	};
+	position: {
+		x: number;
+		y: number;
+		z: number;
+	};
+	scale: {
+		x: number;
+		y: number;
+		z: number;
+	};
+	style: {
+		color?: string;
+		backgroundColor?: string;
+		opacity?: number;
+		fontFamily?: string;
+		fontSize?: number;
+		fontWeight?: string;
+		borderColor?: string;
+		borderWidth?: number;
+		borderRadius?: number;
+	};
+	faceName: string;
+};
 
 export default function ProjectPage() {
 	const params = useParams();
@@ -109,7 +106,6 @@ export default function ProjectPage() {
 
 	const [showInstructionsModal, setShowInstructionsModal] = useState(false);
 	const [showTextModal, setShowTextModal] = useState(false);
-	const [textElements, setTextElements] = useState<TextElement[]>([]);
 
 	const isNewProject = useMemo(
 		() => projectIdFromPath === 'new',
@@ -280,42 +276,7 @@ export default function ProjectPage() {
 			const currentFaces = project.model.faces || [];
 
 			if (activeTool === 'color') {
-				const faceExists = currentFaces.some(
-					(f) => f.faceName === faceName
-				);
-
-				let updatedFaces;
-				if (faceExists) {
-					updatedFaces = currentFaces.map((face) => {
-						if (face.faceName === faceName) {
-							return {
-								...face,
-								isSolidColor: true,
-								solidColorValue: dropperColor,
-								designUrl: undefined,
-								texture: undefined,
-							};
-						}
-						return face;
-					});
-				} else {
-					updatedFaces = [
-						...currentFaces,
-						{
-							faceName,
-							isSolidColor: true,
-							solidColorValue: dropperColor,
-						},
-					];
-				}
-
-				setProject({
-					...project,
-					model: {
-						...project.model,
-						faces: updatedFaces,
-					},
-				});
+				handleFaceColor(faceName);
 			} else if (activeTool === 'design') {
 				toast.info(
 					'Design upload functionality coming soon. Save your project first.'
@@ -431,29 +392,112 @@ export default function ProjectPage() {
 		}
 	};
 
-	const handleTextSubmit = (
-		text: string,
-		fontSize: number,
-		fontFamily: string
-	) => {
-		if (!selectedFace) return;
+	const handleFaceColor = (faceName: string) => {
+		if (!project) return;
+		const currentFaces = project.model.faces || [];
+		const faceExists = currentFaces.some((f) => f.faceName === faceName);
 
-		const newTextElement: TextElement = {
-			id: Math.random().toString(36).substr(2, 9),
-			text,
-			position: { x: 0, y: 0 },
-			rotation: { x: 0, y: 0, z: 0 },
-			size: {
-				width: text.length * fontSize * 0.6,
-				height: fontSize * 1.2,
+		let updatedFaces;
+		if (faceExists) {
+			updatedFaces = currentFaces.map((face) => {
+				if (face.faceName === faceName) {
+					return {
+						...face,
+						isSolidColor: true,
+						solidColorValue: dropperColor,
+						designUrl: undefined,
+						texture: undefined,
+					};
+				}
+				return face;
+			});
+		} else {
+			updatedFaces = [
+				...currentFaces,
+				{
+					faceName,
+					isSolidColor: true,
+					solidColorValue: dropperColor,
+				},
+			];
+		}
+
+		setProject({
+			...project,
+			model: {
+				...project.model,
+				faces: updatedFaces,
 			},
-			font: fontFamily,
-			fontSize,
-			color: '#000000',
-			faceName: selectedFace,
-		};
+		});
+	};
 
-		setTextElements((prev) => [...prev, newTextElement]);
+	const handleTextSubmit = (text: string) => {
+		setSelectedFace(selectedFace);
+		if (!project || !selectedFace) return;
+
+		const currentFaces = project.model.faces || [];
+		const faceExists = currentFaces.some((f) => f.faceName === selectedFace);
+
+		let updatedFaces: IFacePropertiesDB[];
+		if (faceExists) {
+			updatedFaces = currentFaces.map((face) => {
+				if (face.faceName === selectedFace) {
+					const newDesignElement = {
+						type: 'text' as const,
+						content: { text },
+						position: { x: 0, y: 0, z: 0 },
+						scale: { x: 1, y: 1, z: 1 },
+						style: {
+							color: '#000000',
+							fontFamily: 'Arial',
+							fontSize: 16,
+							fontWeight: 'normal',
+							opacity: 1
+						},
+						faceName: selectedFace
+					};
+					return {
+						...face,
+						designElements: [
+							...(face.designElements || []),
+							newDesignElement
+						]
+					};
+				}
+				return face;
+			});
+		} else {
+			const newDesignElement = {
+				type: 'text' as const,
+				content: { text },
+				position: { x: 0, y: 0, z: 0 },
+				scale: { x: 1, y: 1, z: 1 },
+				style: {
+					color: '#000000',
+					fontFamily: 'Arial',
+					fontSize: 16,
+					fontWeight: 'normal',
+					opacity: 1
+				},
+				faceName: selectedFace
+			};
+			updatedFaces = [
+				...currentFaces,
+				{
+					faceName: selectedFace,
+					isSolidColor: false,
+					designElements: [newDesignElement]
+				}
+			];
+		}
+
+		setProject({
+			...project,
+			model: {
+				...project.model,
+				faces: updatedFaces
+			}
+		});
 	};
 
 	if (loading) {
@@ -514,6 +558,20 @@ export default function ProjectPage() {
 		(acc, face) => {
 			if (face.isSolidColor && face.solidColorValue) {
 				acc[face.faceName] = face.solidColorValue;
+			}
+			return acc;
+		},
+		{}
+	);
+
+	const textElements = project.model.faces.reduce<Record<string, NonNullable<IFacePropertiesDB['designElements']>[number]>>(
+		(acc, face) => {
+			if (face.designElements) {
+				face.designElements.forEach((element) => {
+					if (element.type === 'text') {
+						acc[element.faceName] = element;
+					}
+				});
 			}
 			return acc;
 		},
@@ -593,6 +651,7 @@ export default function ProjectPage() {
 						objPath={selectedObjectPath}
 						onFaceClick={handleFaceClick}
 						faceColors={faceColorMap}
+						textElements={textElements}
 						selectedFaceName={selectedFace || undefined}
 						modelScaleX={modelScale.x}
 						modelScaleY={modelScale.y}
@@ -601,7 +660,6 @@ export default function ProjectPage() {
 						modelRotationY={modelRotation.y}
 						modelRotationZ={modelRotation.z}
 						activeTool={activeTool}
-						textElements={textElements}
 					/>
 					{/* Saving overlay for viewport */}
 					{isSaving && (

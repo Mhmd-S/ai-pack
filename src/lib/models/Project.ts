@@ -7,6 +7,36 @@ export interface IFacePropertiesDB {
 	solidColorValue?: string;
 	designUrl?: string;
 	texture?: string;
+	designElements?: {
+		type: 'text' | 'image' | 'shape';
+		content: {
+			text?: string;
+			imageUrl?: string;
+			shapeType?: 'rectangle' | 'circle' | 'triangle';
+		};
+		position: {
+			x: number;
+			y: number;
+			z: number;
+		};
+		scale: {
+			x: number;
+			y: number;
+			z: number;
+		};
+		style: {
+			color?: string;
+			backgroundColor?: string;
+			opacity?: number;
+			fontFamily?: string;
+			fontSize?: number;
+			fontWeight?: string;
+			borderColor?: string;
+			borderWidth?: number;
+			borderRadius?: number;
+		};
+		faceName: string;
+	}[];
 }
 
 // Interface for Scale/Rotation (stored in DB)
@@ -45,6 +75,45 @@ const FacePropertiesSchema = new Schema<IFacePropertiesDB>(
 		solidColorValue: { type: String },
 		designUrl: { type: String },
 		texture: { type: String },
+		designElements: [
+			{
+				type: {
+					type: String,
+					enum: ['text', 'image', 'shape'],
+					required: true,
+				},
+				content: {
+					text: { type: String },
+					imageUrl: { type: String },
+					shapeType: {
+						type: String,
+						enum: ['rectangle', 'circle', 'triangle'],
+					},
+				},
+				position: {
+					x: { type: Number, required: true },
+					y: { type: Number, required: true },
+					z: { type: Number, required: true },
+				},
+				scale: {
+					x: { type: Number, required: true },
+					y: { type: Number, required: true },
+					z: { type: Number, required: true },
+				},
+				style: {
+					color: { type: String },
+					backgroundColor: { type: String },
+					opacity: { type: Number },
+					fontFamily: { type: String },
+					fontSize: { type: Number },
+					fontWeight: { type: String },
+					borderColor: { type: String },
+					borderWidth: { type: Number },
+					borderRadius: { type: Number },
+				},
+				faceName: { type: String, required: true },
+			},
+		],
 	},
 	{ _id: false }
 );

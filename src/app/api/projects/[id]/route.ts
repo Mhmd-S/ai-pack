@@ -20,7 +20,7 @@ export async function GET(request: Request, { params }: Params) {
 		}
 
 		await connectDB();
-		const { id } = params;
+		const { id } = await params;
 
 		if (!mongoose.Types.ObjectId.isValid(id)) {
 			return NextResponse.json(
@@ -60,7 +60,7 @@ export async function PATCH(request: Request, { params }: Params) {
 		}
 
 		await connectDB();
-		const { id } = params;
+		const { id } = await params;
 
 		if (!mongoose.Types.ObjectId.isValid(id)) {
 			return NextResponse.json(
@@ -82,6 +82,8 @@ export async function PATCH(request: Request, { params }: Params) {
 		if (updates.updatedAt) {
 			delete updates.updatedAt;
 		}
+
+		console.log('updates', updates.model.faces[0].designElements);
 
 		const updatedProject = await Project.findOneAndUpdate(
 			{ _id: id, userId },
@@ -117,7 +119,7 @@ export async function DELETE(request: Request, { params }: Params) {
 		}
 
 		await connectDB();
-		const { id } = params;
+		const { id } = await params;
 
 		if (!mongoose.Types.ObjectId.isValid(id)) {
 			return NextResponse.json(

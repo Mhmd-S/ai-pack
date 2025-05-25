@@ -183,49 +183,6 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
 				</div>
 			)}
 
-			{/* Model Rotation Controls */}
-			<div className="mt-4 space-y-2">
-				<h3 className="text-sm font-medium text-slate-300">Rotation</h3>
-				<div className="space-y-2">
-					<div className="flex items-center gap-2">
-						<label className="text-xs text-slate-400">X:</label>
-						<input
-							type="number"
-							value={modelRotation.x}
-							onChange={(e) =>
-								onRotationChange('x', e.target.value)
-							}
-							className="w-16 px-2 py-1 bg-slate-700 rounded text-sm"
-							step="1"
-						/>
-					</div>
-					<div className="flex items-center gap-2">
-						<label className="text-xs text-slate-400">Y:</label>
-						<input
-							type="number"
-							value={modelRotation.y}
-							onChange={(e) =>
-								onRotationChange('y', e.target.value)
-							}
-							className="w-16 px-2 py-1 bg-slate-700 rounded text-sm"
-							step="1"
-						/>
-					</div>
-					<div className="flex items-center gap-2">
-						<label className="text-xs text-slate-400">Z:</label>
-						<input
-							type="number"
-							value={modelRotation.z}
-							onChange={(e) =>
-								onRotationChange('z', e.target.value)
-							}
-							className="w-16 px-2 py-1 bg-slate-700 rounded text-sm"
-							step="1"
-						/>
-					</div>
-				</div>
-			</div>
-
 			{/* Text Tool */}
 			{isFaceSelected && (
 				<>

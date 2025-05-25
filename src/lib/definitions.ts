@@ -127,3 +127,56 @@ export type ModelStorage = {
 		checksum: string;
 	};
 };
+
+
+export interface IFaceProperties {
+	faceName: string;
+	isSolidColor: boolean;
+	solidColorValue?: string;
+	designUrl?: string;
+	texture?: string;
+	designElements?: {
+		type: 'text' | 'image' | 'shape';
+		content: {
+			text?: string;
+			imageUrl?: string;
+			shapeType?: string;
+		};
+		position: {
+			x: number;
+			y: number;
+			z: number;
+		};
+		scale: {
+			x: number;
+			y: number;
+			z: number;
+		};
+		style: {
+			color: string;
+			fontFamily: string;
+			fontSize: number;
+			fontWeight: string;
+			borderColor: string;
+			borderWidth: number;
+			borderRadius: number;
+		};
+		faceName: string;
+	}[];
+}
+
+export interface IModelProperties {
+	modelType: string;
+	modelPath: string;
+	scale: {
+		x: number;
+		y: number;
+		z: number;
+	};
+	rotation: {
+		x: number;
+		y: number;
+		z: number;
+	};
+	faces: IFaceProperties[];
+}
