@@ -759,9 +759,9 @@ const OBJModelEdit: React.FC<OBJModelEditProps> = ({
 
 									// Simple mapping of face names to camera directions
 									if (faceName.includes('top-z')) {
-										cameraDirection.set(0, 1, 0); // Look from top
+										cameraDirection.set(cameraDirection.x, 1, cameraDirection.z); // Look from top
 									} else if (faceName.includes('bot-z')) {
-										cameraDirection.set(0, -1, 0); // Look from bottom
+										cameraDirection.set(cameraDirection.x, -1, cameraDirection.z); // Look from bottom
 									} else if (faceName.includes('-f')) {
 										cameraDirection.set(-1, 0, 0); // Look from front
 									} else if (faceName.includes('-b')) {
