@@ -70,8 +70,8 @@ export interface ProjectDocument {
 // Schema for Face Properties
 const FacePropertiesSchema = new Schema<IFacePropertiesDB>(
 	{
-		faceName: { type: String, required: true },
-		isSolidColor: { type: Boolean, required: true },
+		faceName: { type: String },
+		isSolidColor: { type: Boolean },
 		solidColorValue: { type: String },
 		designUrl: { type: String },
 		texture: { type: String },
@@ -111,7 +111,6 @@ const FacePropertiesSchema = new Schema<IFacePropertiesDB>(
 					borderWidth: { type: Number },
 					borderRadius: { type: Number },
 				},
-				faceName: { type: String, required: true },
 			},
 		],
 	},

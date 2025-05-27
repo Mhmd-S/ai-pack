@@ -11,7 +11,7 @@ import InstructionsModal from '@/components/edit/InstructionsModal';
 import TextInputModal from '@/components/edit/TextInputModal';
 import { toast } from 'sonner';
 import { Toaster as SonnerToaster } from '@/components/ui/sonner';
-import { IModelProperties, IFacePropertiesDB } from '@/lib/models/Project';
+import { IModelProperties } from '@/lib/definitions';
 
 import {
 	Select,
@@ -38,38 +38,6 @@ interface Project {
 	status: 'draft' | 'generating' | 'review' | 'error';
 	model: IModelProperties;
 }
-
-// Add type for DesignElement
-type DesignElement = {
-	type: 'text' | 'image' | 'shape';
-	content: {
-		text?: string;
-		imageUrl?: string;
-		shapeType?: 'rectangle' | 'circle' | 'triangle';
-	};
-	position: {
-		x: number;
-		y: number;
-		z: number;
-	};
-	scale: {
-		x: number;
-		y: number;
-		z: number;
-	};
-	style: {
-		color?: string;
-		backgroundColor?: string;
-		opacity?: number;
-		fontFamily?: string;
-		fontSize?: number;
-		fontWeight?: string;
-		borderColor?: string;
-		borderWidth?: number;
-		borderRadius?: number;
-	};
-	faceName: string;
-};
 
 export default function ProjectPage() {
 	const params = useParams();
@@ -433,61 +401,47 @@ export default function ProjectPage() {
 
 	const handleTextSubmit = (text: string) => {
 		setSelectedFace(selectedFace);
-		if (!project || !selectedFace) return;
+		if (!project) return;
 
 		const currentFaces = project.model.faces || [];
-		const faceExists = currentFaces.some((f) => f.faceName === selectedFace);
 
-		let updatedFaces: IFacePropertiesDB[];
+		if (!selectedFace) return;
+
+		const faceExists = currentFaces.some(
+			(f) => f.faceName === selectedFace
+		);
+
+		let updatedFaces;
 		if (faceExists) {
 			updatedFaces = currentFaces.map((face) => {
 				if (face.faceName === selectedFace) {
-					const newDesignElement = {
-						type: 'text' as const,
-						content: { text },
-						position: { x: 0, y: 0, z: 0 },
-						scale: { x: 1, y: 1, z: 1 },
-						style: {
-							color: '#000000',
-							fontFamily: 'Arial',
-							fontSize: 16,
-							fontWeight: 'normal',
-							opacity: 1
-						},
-						faceName: selectedFace
-					};
 					return {
 						...face,
 						designElements: [
 							...(face.designElements || []),
-							newDesignElement
-						]
+							{
+								type: 'text',
+								content: { text },
+								position: { x: 0, y: 0, z: 0 },
+								scale: { x: 1, y: 1, z: 1 },
+								style: {
+									color: '#000000',
+									fontFamily: 'Arial',
+								},
+							},
+						],
 					};
 				}
 				return face;
 			});
 		} else {
-			const newDesignElement = {
-				type: 'text' as const,
-				content: { text },
-				position: { x: 0, y: 0, z: 0 },
-				scale: { x: 1, y: 1, z: 1 },
-				style: {
-					color: '#000000',
-					fontFamily: 'Arial',
-					fontSize: 16,
-					fontWeight: 'normal',
-					opacity: 1
-				},
-				faceName: selectedFace
-			};
 			updatedFaces = [
 				...currentFaces,
 				{
 					faceName: selectedFace,
 					isSolidColor: false,
-					designElements: [newDesignElement]
-				}
+					designElements: [{ type: 'text', content: { text }, position: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 }, style: { color: '#000000', fontFamily: 'Arial' } }],
+				},
 			];
 		}
 
@@ -495,8 +449,8 @@ export default function ProjectPage() {
 			...project,
 			model: {
 				...project.model,
-				faces: updatedFaces
-			}
+				faces: updatedFaces,
+			},
 		});
 	};
 
@@ -564,11 +518,11 @@ export default function ProjectPage() {
 		{}
 	);
 
-	const textElements = project.model.faces.reduce<Record<string, NonNullable<IFacePropertiesDB['designElements']>[number]>>(
+	const textElements = project.model.faces.reduce<Record<string, DesignElement>>(
 		(acc, face) => {
 			if (face.designElements) {
 				face.designElements.forEach((element) => {
-					if (element.type === 'text') {
+					if (element.type == 'text') {
 						acc[element.faceName] = element;
 					}
 				});
@@ -660,6 +614,7 @@ export default function ProjectPage() {
 						modelRotationY={modelRotation.y}
 						modelRotationZ={modelRotation.z}
 						activeTool={activeTool}
+
 					/>
 					{/* Saving overlay for viewport */}
 					{isSaving && (
