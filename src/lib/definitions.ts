@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { ActiveTool } from '@/components/edit/FloatingToolbar';
+import * as THREE from 'three';
 
 export const SignupFormSchema = z.object({
 	email: z.string().email({ message: 'Please enter a valid email.' }).trim(),
@@ -100,7 +102,6 @@ export type User = {
 	password: string;
 };
 
-
 export const PACKAGING_TYPES = [
 	{ value: 'clamshell', label: 'Clamshell Box' },
 	{ value: 'pizza_box', label: 'Pizza Box' },
@@ -127,7 +128,6 @@ export type ModelStorage = {
 		checksum: string;
 	};
 };
-
 
 export interface IFaceProperties {
 	faceName: string;
@@ -179,4 +179,24 @@ export interface IModelProperties {
 		z: number;
 	};
 	faces: IFaceProperties[];
+}
+
+export interface DesignElement {
+	type: 'text';
+	texture: THREE.Texture;
+}
+
+export interface OBJModelEditProps {
+	objPath: string;
+	faceColors: Record<string, string>;
+	onFaceClick: (faceName: string) => void;
+	selectedFaceName?: string;
+	modelScaleX: number;
+	modelScaleY: number;
+	modelScaleZ: number;
+	modelRotationX: number;
+	modelRotationY: number;
+	modelRotationZ: number;
+	activeTool: ActiveTool;
+	textElements: Record<string, DesignElement>;
 }

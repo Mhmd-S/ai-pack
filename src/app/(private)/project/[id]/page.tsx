@@ -6,9 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertTriangle, ArrowLeft, Save, Package } from 'lucide-react';
 import OBJModelEdit from '@/components/edit/DesignEdit3D';
-import FloatingToolbar, { ActiveTool } from '@/components/edit/FloatingToolbar';
-import InstructionsModal from '@/components/edit/InstructionsModal';
-import TextInputModal from '@/components/edit/TextInputModal';
 import { toast } from 'sonner';
 import { Toaster as SonnerToaster } from '@/components/ui/sonner';
 import { IModelProperties } from '@/lib/definitions';
@@ -29,8 +26,10 @@ type PackagingObject = {
 
 const AVAILABLE_OBJECTS: PackagingObject[] = [
 	{ id: 'clamshell', name: 'Clamshell Box', path: '/models/clamshell.obj' },
-	{ id: 'burger', name: 'Burger Box', path: '/models/burger.obj' },
-	{ id: 'custom', name: 'Custom Box', path: '/models/custom.obj' },
+	{ id: 'fries', name: 'Fries Box', path: '/models/fries.obj' },
+	{ id: 'basket', name: 'Basket', path: '/models/basket.obj' },
+	{ id: 'transparent', name: 'Transparent', path: '/models/transparent.obj' },
+	{ id: 'cakebox', name: 'Cake Box', path: '/models/cakebox.obj' },
 ];
 
 interface Project {
@@ -50,30 +49,9 @@ export default function ProjectPage() {
 	const [error, setError] = useState<string | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [isSaving, setIsSaving] = useState(false);
-	const [selectedFace, setSelectedFace] = useState<string | null>(null);
 	const [selectedObject, setSelectedObject] = useState<string>(
 		AVAILABLE_OBJECTS[0].id
 	);
-
-	// State for the floating toolbar
-	const [activeTool, setActiveTool] = useState<ActiveTool>(null);
-	const [dropperColor, setDropperColor] = useState<string>('#FFFFFF');
-
-	// State for measurements (scale)
-	const [modelScale, setModelScale] = useState<{
-		x: number;
-		y: number;
-		z: number;
-	}>({ x: 1, y: 1, z: 1 });
-
-	const [modelRotation, setModelRotation] = useState<{
-		x: number;
-		y: number;
-		z: number;
-	}>({ x: 0, y: 0, z: 0 });
-
-	const [showInstructionsModal, setShowInstructionsModal] = useState(false);
-	const [showTextModal, setShowTextModal] = useState(false);
 
 	const isNewProject = useMemo(
 		() => projectIdFromPath === 'new',
@@ -106,8 +84,6 @@ export default function ProjectPage() {
 				},
 			});
 			setSelectedObject(initialModel.id);
-			setModelScale({ x: 1, y: 1, z: 1 });
-			setModelRotation({ x: 0, y: 0, z: 0 });
 			setLoading(false);
 		},
 		[router]
@@ -236,224 +212,6 @@ export default function ProjectPage() {
 		}
 	};
 
-	const handleFaceClick = useCallback(
-		(faceName: string) => {
-			setSelectedFace(faceName);
-			if (!project) return;
-
-			const currentFaces = project.model.faces || [];
-
-			if (activeTool === 'color') {
-				handleFaceColor(faceName);
-			} else if (activeTool === 'design') {
-				toast.info(
-					'Design upload functionality coming soon. Save your project first.'
-				);
-			} else {
-				const face = currentFaces.find((f) => f.faceName === faceName);
-				if (face?.isSolidColor && face.solidColorValue) {
-					setDropperColor(face.solidColorValue);
-				} else {
-					setDropperColor('#FFFFFF');
-				}
-			}
-		},
-		[activeTool, dropperColor, project]
-	);
-
-	const handleDropperColorChange = (
-		event: React.ChangeEvent<HTMLInputElement>
-	) => {
-		setDropperColor(event.target.value);
-	};
-
-	const handleSaveChanges = async () => {
-		if (!project) {
-			toast.error('Cannot Save: No project data available.');
-			return;
-		}
-		setIsSaving(true);
-
-		const projectPayload: Omit<Project, '_id'> & { _id?: string } = {
-			...project,
-			status: project.status || 'draft',
-			model: {
-				...project.model,
-				scale: modelScale,
-				rotation: modelRotation,
-			},
-		};
-		if (isNewProject || !projectPayload._id) {
-			delete projectPayload._id;
-		}
-
-		try {
-			let response;
-			let newProjectId = project._id;
-
-			if (isNewProject || !project._id) {
-				response = await fetch('/api/projects', {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify(projectPayload),
-				});
-			} else {
-				response = await fetch(`/api/projects/${project._id}`, {
-					method: 'PATCH',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify(projectPayload),
-				});
-			}
-
-			if (!response.ok) {
-				const errorData = await response.json().catch(() => ({}));
-				throw new Error(
-					errorData.error || 'Failed to save changes to server'
-				);
-			}
-
-			const savedProject = await response.json();
-			setProject(savedProject);
-
-			if ((isNewProject || !project._id) && savedProject._id) {
-				newProjectId = savedProject._id;
-				router.replace(`/project/${newProjectId}`, { scroll: false });
-				toast.success('Project created and saved successfully!');
-			} else {
-				toast.success('Your changes have been saved.');
-			}
-		} catch (err) {
-			console.error('Error saving changes:', err);
-			toast.error(
-				err instanceof Error ? err.message : 'Could not save changes'
-			);
-		} finally {
-			setIsSaving(false);
-		}
-	};
-
-	const handleSetTool = (tool: ActiveTool) => {
-		if (activeTool === tool) {
-			setActiveTool(null);
-		} else {
-			setActiveTool(tool);
-		}
-	};
-
-	const handleScaleChange = (axis: 'x' | 'y' | 'z', value: string) => {
-		const numericValue = parseFloat(value);
-		if (!isNaN(numericValue)) {
-			setModelScale((prevScale) => ({
-				...prevScale,
-				[axis]: numericValue,
-			}));
-		}
-	};
-
-	const handleRotationChange = (axis: 'x' | 'y' | 'z', value: string) => {
-		const numericValue = parseFloat(value);
-		if (!isNaN(numericValue)) {
-			setModelRotation((prevRotation) => ({
-				...prevRotation,
-				[axis]: numericValue,
-			}));
-		}
-	};
-
-	const handleFaceColor = (faceName: string) => {
-		if (!project) return;
-		const currentFaces = project.model.faces || [];
-		const faceExists = currentFaces.some((f) => f.faceName === faceName);
-
-		let updatedFaces;
-		if (faceExists) {
-			updatedFaces = currentFaces.map((face) => {
-				if (face.faceName === faceName) {
-					return {
-						...face,
-						isSolidColor: true,
-						solidColorValue: dropperColor,
-						designUrl: undefined,
-						texture: undefined,
-					};
-				}
-				return face;
-			});
-		} else {
-			updatedFaces = [
-				...currentFaces,
-				{
-					faceName,
-					isSolidColor: true,
-					solidColorValue: dropperColor,
-				},
-			];
-		}
-
-		setProject({
-			...project,
-			model: {
-				...project.model,
-				faces: updatedFaces,
-			},
-		});
-	};
-
-	const handleTextSubmit = (text: string) => {
-		setSelectedFace(selectedFace);
-		if (!project) return;
-
-		const currentFaces = project.model.faces || [];
-
-		if (!selectedFace) return;
-
-		const faceExists = currentFaces.some(
-			(f) => f.faceName === selectedFace
-		);
-
-		let updatedFaces;
-		if (faceExists) {
-			updatedFaces = currentFaces.map((face) => {
-				if (face.faceName === selectedFace) {
-					return {
-						...face,
-						designElements: [
-							...(face.designElements || []),
-							{
-								type: 'text',
-								content: { text },
-								position: { x: 0, y: 0, z: 0 },
-								scale: { x: 1, y: 1, z: 1 },
-								style: {
-									color: '#000000',
-									fontFamily: 'Arial',
-								},
-							},
-						],
-					};
-				}
-				return face;
-			});
-		} else {
-			updatedFaces = [
-				...currentFaces,
-				{
-					faceName: selectedFace,
-					isSolidColor: false,
-					designElements: [{ type: 'text', content: { text }, position: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 }, style: { color: '#000000', fontFamily: 'Arial' } }],
-				},
-			];
-		}
-
-		setProject({
-			...project,
-			model: {
-				...project.model,
-				faces: updatedFaces,
-			},
-		});
-	};
-
 	if (loading) {
 		return (
 			<div className="flex flex-col items-center justify-center h-screen bg-slate-900 text-slate-300">
@@ -508,29 +266,6 @@ export default function ProjectPage() {
 		);
 	}
 
-	const faceColorMap = project.model.faces.reduce<Record<string, string>>(
-		(acc, face) => {
-			if (face.isSolidColor && face.solidColorValue) {
-				acc[face.faceName] = face.solidColorValue;
-			}
-			return acc;
-		},
-		{}
-	);
-
-	const textElements = project.model.faces.reduce<Record<string, DesignElement>>(
-		(acc, face) => {
-			if (face.designElements) {
-				face.designElements.forEach((element) => {
-					if (element.type == 'text') {
-						acc[element.faceName] = element;
-					}
-				});
-			}
-			return acc;
-		},
-		{}
-	);
 
 	const selectedObjectPath =
 		AVAILABLE_OBJECTS?.find((obj) => obj.id === selectedObject)?.path ||
@@ -560,7 +295,7 @@ export default function ProjectPage() {
 							</SelectContent>
 						</Select>
 					)}
-					<Button
+					{/* <Button
 						onClick={handleSaveChanges}
 						disabled={isSaving || !project}
 						className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 text-sm disabled:opacity-50"
@@ -571,50 +306,15 @@ export default function ProjectPage() {
 							: isNewProject || !project._id
 							? 'Create & Save Project'
 							: 'Save Changes'}
-					</Button>
+					</Button> */}
 				</div>
 			</header>
 
 			{/* Main Content Area (Viewport + Sidebar) */}
 			<div className="flex flex-1 overflow-hidden">
-				<FloatingToolbar
-					activeTool={activeTool}
-					onSetTool={handleSetTool}
-					dropperColor={dropperColor}
-					onDropperColorChange={handleDropperColorChange}
-					modelScale={modelScale}
-					onScaleChange={handleScaleChange}
-					modelRotation={modelRotation}
-					onRotationChange={handleRotationChange}
-					onShowInstructions={() => setShowInstructionsModal(true)}
-					isFaceSelected={selectedFace !== null}
-					setShowTextModal={setShowTextModal}
-				/>
-
-				<InstructionsModal
-					isOpen={showInstructionsModal}
-					onOpenChange={setShowInstructionsModal}
-				/>
-				<TextInputModal
-					isOpen={showTextModal}
-					onClose={() => setShowTextModal(false)}
-					onSubmit={handleTextSubmit}
-				/>
 				<main className="flex-1 bg-slate-900 overflow-hidden relative">
 					<OBJModelEdit
 						objPath={selectedObjectPath}
-						onFaceClick={handleFaceClick}
-						faceColors={faceColorMap}
-						textElements={textElements}
-						selectedFaceName={selectedFace || undefined}
-						modelScaleX={modelScale.x}
-						modelScaleY={modelScale.y}
-						modelScaleZ={modelScale.z}
-						modelRotationX={modelRotation.x}
-						modelRotationY={modelRotation.y}
-						modelRotationZ={modelRotation.z}
-						activeTool={activeTool}
-
 					/>
 					{/* Saving overlay for viewport */}
 					{isSaving && (
