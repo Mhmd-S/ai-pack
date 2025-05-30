@@ -187,16 +187,5 @@ export interface DesignElement {
 }
 
 export interface OBJModelEditProps {
-	objPath: string;
-	faceColors: Record<string, string>;
-	onFaceClick: (faceName: string) => void;
-	selectedFaceName?: string;
-	modelScaleX: number;
-	modelScaleY: number;
-	modelScaleZ: number;
-	modelRotationX: number;
-	modelRotationY: number;
-	modelRotationZ: number;
-	activeTool: ActiveTool;
-	textElements: Record<string, DesignElement>;
+	url: string;
 }

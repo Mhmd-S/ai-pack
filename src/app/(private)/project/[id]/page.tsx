@@ -314,7 +314,7 @@ export default function ProjectPage() {
 			<div className="flex flex-1 overflow-hidden">
 				<main className="flex-1 bg-slate-900 overflow-hidden relative">
 					<OBJModelEdit
-						objPath={selectedObjectPath}
+						url={selectedObjectPath}
 					/>
 					{/* Saving overlay for viewport */}
 					{isSaving && (

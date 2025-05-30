@@ -1,17 +1,33 @@
-import { useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import {
 	OrbitControls,
 	PerspectiveCamera,
 	Environment,
-	Select,
 } from '@react-three/drei';
-import Model from '@/components/edit/Model';
 import { OBJModelEditProps } from '@/lib/definitions';
+import { useState } from 'react';
+import { useLoader } from '@react-three/fiber';
+import { Select } from '@react-three/drei';
+import { Panel } from './MultiLeva';
+import * as THREE from 'three';
+import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader';
+import { Object3D } from 'three';
+import FaceMesh from '@/components/edit/FaceMesh';
 
 // Main component
-const OBJModelEdit: React.FC<OBJModelEditProps> = (props) => {
+const OBJModelEdit: React.FC<OBJModelEditProps> = ({
+	url,
+}: {
+	url: string;
+}) => {
+	const obj = useLoader(OBJLoader, url);
+
 	const [isLoading, setIsLoading] = useState(true);
+	const [selected, setSelected] = useState<Object3D[]>([]);
+
+	const handleSelectionChange = (selectedObjects: Object3D[]) => {
+		setSelected(selectedObjects);
+	};
 
 	return (
 		<div style={{ position: 'relative', width: '100%', height: '100%' }}>
@@ -21,25 +37,37 @@ const OBJModelEdit: React.FC<OBJModelEditProps> = (props) => {
 					height: '100%',
 					background: '#1f2937',
 				}}
+				gl={{
+					toneMapping: THREE.NoToneMapping
+				}}
+				dpr={[1, 2]}
+				orthographic
+				camera={{ position: [-10, 10, 10], zoom: 100 }}
 				onCreated={() => setIsLoading(false)}
 			>
-				<PerspectiveCamera makeDefault position={[5, 5, 3]} />
 				<OrbitControls enableDamping dampingFactor={0.05} />
-
-				<ambientLight intensity={0.8} />
-				<directionalLight
-					position={[10, 10, 10]}
-					intensity={1.2}
-					castShadow
-				/>
-				<directionalLight position={[-10, 10, -10]} intensity={0.7} />
-				<directionalLight position={[0, -5, -10]} intensity={0.5} />
+				<pointLight position={[10, 10, 10]} />
 
 				<Environment preset="city" />
-				<Select box multiple onChange={console.log} filter={items => items.length > 0}>
-					{props.objPath && !isLoading && <Model {...props} />}
+				<Select onChangePointerUp={handleSelectionChange}>
+					{obj.children.map((child, index) => {
+						if (child instanceof THREE.Mesh) {
+							return (
+								<FaceMesh
+									key={index}
+									geometry={child.geometry}
+									material={child.material}
+									position={child.position}
+									rotation={child.rotation}
+									scale={child.scale}
+								/>
+							);
+						}
+						return null;
+					})}
 				</Select>
 			</Canvas>
+			<Panel selected={selected} />
 
 			{isLoading && (
 				<div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm z-20">
