@@ -57,7 +57,7 @@ const FaceMesh = ({
 	const selected = useSelect().map((sel) => sel.userData.store);
 
 	// Extract material properties with defaults
-	const defaultColor = {r: 0, g: 0, b: 0}
+	const defaultColor = {r: 255, g: 255, b: 255}
 	const defaultRoughness =
 		(material as THREE.MeshStandardMaterial).roughness || 0.5;
 	const defaultMetalness =
@@ -88,7 +88,7 @@ const FaceMesh = ({
 			onPointerOut={() => setHover(false)}
 			userData={{ store }}
 		>
-			<Edges visible={isSelected} scale={1.1} renderOrder={1000}>
+			<Edges visible={isSelected} lineWidth={3} color="#ff6600" scale={1} renderOrder={1000}>
 				<meshBasicMaterial transparent color="#333" depthTest={false} />
 			</Edges>
 			<meshStandardMaterial

@@ -1,16 +1,12 @@
 import { Canvas } from '@react-three/fiber';
-import {
-	OrbitControls,
-	PerspectiveCamera,
-	Environment,
-} from '@react-three/drei';
+import { OrbitControls, Grid, Environment, PerspectiveCamera } from '@react-three/drei';
 import { OBJModelEditProps } from '@/lib/definitions';
 import { useState } from 'react';
 import { useLoader } from '@react-three/fiber';
 import { Select } from '@react-three/drei';
 import { Panel } from './MultiLeva';
 import * as THREE from 'three';
-import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader';
+import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 import { Object3D } from 'three';
 import FaceMesh from '@/components/edit/FaceMesh';
 
@@ -35,37 +31,65 @@ const OBJModelEdit: React.FC<OBJModelEditProps> = ({
 				style={{
 					width: '100%',
 					height: '100%',
-					background: '#1f2937',
-				}}
-				gl={{
-					toneMapping: THREE.NoToneMapping
+					background: '#e5e5e5',
 				}}
 				dpr={[1, 2]}
-				orthographic
-				camera={{ position: [-10, 10, 10], zoom: 100 }}
 				onCreated={() => setIsLoading(false)}
 			>
-				<OrbitControls enableDamping dampingFactor={0.05} />
-				<pointLight position={[10, 10, 10]} />
+				<PerspectiveCamera
+					position={[0, 0, 10]}
+					fov={50}
+					near={0.1}
+					far={1000}
+				/>
+				<OrbitControls
+					target={[0, 0, 0]}
+					enableDamping
+					dampingFactor={0.05}
+					minAzimuthAngle={-Math.PI / 1}
+					maxAzimuthAngle={Math.PI / 1}
+					minPolarAngle={Math.PI / 6}
+					maxPolarAngle={Math.PI - Math.PI / 2}
+				/>
+
+				<Grid
+					position={[0, -1, 0]} // Adjust position as needed
+					args={[500, 500]} // Grid size (width, height)
+					cellSize={2}
+					cellThickness={1}
+					cellColor={'#aeaeae'}
+					sectionSize={50}
+					sectionThickness={1}
+					sectionColor={'#5e5e5e'}
+					fadeDistance={25}
+					fadeStrength={2}
+					followCamera={false}
+					infiniteGrid={false}
+					fadeFrom={0}
+				/>
 
 				<Environment preset="city" />
-				<Select onChangePointerUp={handleSelectionChange}>
-					{obj.children.map((child, index) => {
-						if (child instanceof THREE.Mesh) {
-							return (
-								<FaceMesh
-									key={index}
-									geometry={child.geometry}
-									material={child.material}
-									position={child.position}
-									rotation={child.rotation}
-									scale={child.scale}
-								/>
-							);
-						}
-						return null;
-					})}
-				</Select>
+				<group position={[0, -1, 0]}>
+					<Select onChangePointerUp={handleSelectionChange}>
+						{obj.children.map(
+							(child: THREE.Object3D, index: number) => {
+								if (child instanceof THREE.Mesh) {
+									return (
+										<FaceMesh
+											key={index}
+											geometry={child.geometry}
+											material={child.material}
+											position={child.position}
+											rotation={child.rotation}
+											scale={child.scale}
+										/>
+									);
+								}
+								return null;
+							}
+						)}
+					</Select>
+				</group>
 			</Canvas>
 			<Panel selected={selected} />
 
