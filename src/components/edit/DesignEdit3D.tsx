@@ -69,7 +69,7 @@ const OBJModelEdit: React.FC<OBJModelEditProps> = ({
 				/>
 
 				<Environment preset="city" />
-				<group position={[0, -1, 0]}>
+				{/* <group position={[0, -1, 0]}> */}
 					<Select onChangePointerUp={handleSelectionChange}>
 						{obj.children.map(
 							(child: THREE.Object3D, index: number) => {
@@ -79,9 +79,6 @@ const OBJModelEdit: React.FC<OBJModelEditProps> = ({
 											key={index}
 											geometry={child.geometry}
 											material={child.material}
-											position={child.position}
-											rotation={child.rotation}
-											scale={child.scale}
 										/>
 									);
 								}
@@ -89,7 +86,7 @@ const OBJModelEdit: React.FC<OBJModelEditProps> = ({
 							}
 						)}
 					</Select>
-				</group>
+				{/* </group> */}
 			</Canvas>
 			<Panel selected={selected} />
 

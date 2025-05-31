@@ -25,9 +25,9 @@ type PackagingObject = {
 };
 
 const AVAILABLE_OBJECTS: PackagingObject[] = [
+	{ id: 'basket', name: 'Basket', path: '/models/basket.obj' },
 	{ id: 'clamshell', name: 'Clamshell Box', path: '/models/clamshell.obj' },
 	{ id: 'fries', name: 'Fries Box', path: '/models/fries.obj' },
-	{ id: 'basket', name: 'Basket', path: '/models/basket.obj' },
 	{ id: 'transparent', name: 'Transparent', path: '/models/transparent.obj' },
 	{ id: 'cakebox', name: 'Cake Box', path: '/models/cakebox.obj' },
 ];
