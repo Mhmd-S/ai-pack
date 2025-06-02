@@ -10,10 +10,9 @@ import ImageDecal from './Decals/ImageDecal';
 interface FaceMeshProps {
 	geometry: THREE.BufferGeometry;
 	material: THREE.Material;
-	handleDecalSelectionChange: (selected: THREE.Object3D[]) => void;
 }
 
-const FaceMesh = ({ geometry, material, handleDecalSelectionChange }: FaceMeshProps) => {
+const FaceMesh = ({ geometry, material }: FaceMeshProps) => {
 	const meshRef = useRef<THREE.Mesh>(null!); // Ref for this specific mesh instance
 
 	const [hovered, setHover] = useState(false);
@@ -98,8 +97,6 @@ const FaceMesh = ({ geometry, material, handleDecalSelectionChange }: FaceMeshPr
 			onPointerOver={(e) => (e.stopPropagation(), setHover(true))}
 			onPointerOut={() => setHover(false)}
 			userData={{ store }}
-			onClick={()=>console.log(selectedUserDataStores)}
-			// onDragOver and onDrop are removed from here
 		>
 			<Edges
 				visible={isSelected}
@@ -111,18 +108,16 @@ const FaceMesh = ({ geometry, material, handleDecalSelectionChange }: FaceMeshPr
 				<meshBasicMaterial transparent color="#333" depthTest={false} />
 			</Edges>
 			<meshStandardMaterial color={rgbToHex(materialProps?.color)} />
-
-			<Select onChange={handleDecalSelectionChange}>
-				{meshRef.current &&
-					images.map((image, index) => (
-						<ImageDecal
-							meshRef={meshRef}
-							url={image}
-							parentGeometry={geometry}
-							key={`${image}-${index}`} // More robust key
+			
+			{meshRef.current &&
+				images.map((image, index) => (
+					<ImageDecal
+						meshRef={meshRef}
+						url={image}
+						parentGeometry={geometry}
+						key={`${image}-${index}`} // More robust key
 					/>
 				))}
-			</Select>
 		</mesh>
 	);
 };

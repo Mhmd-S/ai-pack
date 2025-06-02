@@ -8,7 +8,7 @@ import {
 	GizmoHelper,
 } from '@react-three/drei';
 import { OBJModelEditProps } from '@/lib/definitions';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useLoader } from '@react-three/fiber';
 import { Select } from '@react-three/drei';
 import { Panel } from './MultiLeva';
@@ -27,16 +27,15 @@ const OBJModelEdit: React.FC<OBJModelEditProps> = ({
 
 	const [isLoading, setIsLoading] = useState(true);
 	const [selected, setSelected] = useState<Object3D[]>([]);
-	const [decalSelected, setDecalSelected] = useState<Object3D[]>([]);
 
 	const handleSelectionChange = (selectedObjects: Object3D[]) => {
-		if (selected === selectedObjects) return;
 		setSelected(selectedObjects);
 	};
 
-	const handleDecalSelectionChange = (selectedObjects: Object3D[]) => {
-		setDecalSelected(selectedObjects);
-	};
+	const locked = useMemo(() => {
+		if (!selected && selected?.length == 0) return false;
+		selected[0]?.userData?.isDecal;
+	}, [selected]);
 
 	return (
 		<div style={{ position: 'relative', width: '100%', height: '100%' }}>
@@ -64,8 +63,8 @@ const OBJModelEdit: React.FC<OBJModelEditProps> = ({
 					minPolarAngle={Math.PI / 6}
 					maxPolarAngle={Math.PI - Math.PI / 2}
 					maxDistance={100}
-					maxZoom={10}
-					enableRotate={!!decalSelected}
+					maxZoom={100}
+					enableRotate={!locked}
 				/>
 
 				<GizmoHelper alignment="bottom-right" margin={[100, 100]}>
@@ -98,7 +97,6 @@ const OBJModelEdit: React.FC<OBJModelEditProps> = ({
 										key={index}
 										geometry={child.geometry}
 										material={child.material}
-										handleDecalSelectionChange={handleDecalSelectionChange}
 									/>
 								);
 							}
@@ -107,7 +105,7 @@ const OBJModelEdit: React.FC<OBJModelEditProps> = ({
 					)}
 				</Select>
 			</Canvas>
-			<Panel selected={selected || decalSelected} />
+			<Panel selected={selected} />
 
 			{isLoading && (
 				<div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm z-20">

@@ -25,6 +25,13 @@ const ImageDecal = ({ url, parentGeometry, meshRef }: ImageDecalProps) => {
 	const [initialHandlePosition, setInitialHandlePosition] =
 		useState<THREE.Vector3>(new THREE.Vector3());
 
+	const texture = useTexture(url);
+	const standardWidth = 2;
+	const aspectRatio = texture.image
+		? texture.image.height / texture.image.width
+		: 1;
+	const standardHeight = standardWidth * aspectRatio;
+
 	const selectedUserDataStores = useSelect().map((sel) => sel.userData.store);
 
 	const [store, materialProps, set] = useControlsDecals(
@@ -38,13 +45,12 @@ const ImageDecal = ({ url, parentGeometry, meshRef }: ImageDecalProps) => {
 				],
 			},
 			scale: {
-				value: [1, 1],
+				value: [standardWidth, standardHeight],
 			},
 		}
 	);
 
 	useCursor(hovered);
-	const texture = useTexture(url);
 
 	const isSelected = !!selectedUserDataStores.find((s) => s === store);
 
@@ -108,10 +114,9 @@ const ImageDecal = ({ url, parentGeometry, meshRef }: ImageDecalProps) => {
 					materialProps.position[1],
 					materialProps.position[2] + 0.02,
 				]}
-				onClick={()=>console.log(selectedUserDataStores)}
 				onPointerOver={(e) => (e.stopPropagation(), setHover(true))}
 				onPointerOut={() => setHover(false)}
-				useData={{ store }}
+				userData={{ store, isDecal: true }}
 			>
 				<planeGeometry args={currentScale} />
 				<meshBasicMaterial color={'hotpink'} />
@@ -168,7 +173,7 @@ const ImageDecal = ({ url, parentGeometry, meshRef }: ImageDecalProps) => {
 			<Decal
 				mesh={meshRef}
 				position={materialProps.position as [number, number, number]}
-				scale={[currentScale[0], currentScale[1], 0.1]}
+				scale={[currentScale[0], currentScale[1], currentScale[0]]}
 				map={texture}
 				rotation={new THREE.Euler(0, 0, 0)}
 			/>
