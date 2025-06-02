@@ -18,6 +18,38 @@ const AVAILABLE_MODELS = [
 		category: 'boxes',
 		tags: ['standard', 'simple', 'versatile'],
 	},
+	{
+		id: 'basket',
+		name: 'Basket',
+		type: 'basket',
+		thumbnail: '/thumbnails/basket.png',
+		category: 'boxes',
+		tags: ['standard', 'simple', 'versatile'],
+	},
+	{
+		id: 'transparent',
+		name: 'Transparent Box',
+		type: 'transparent',
+		thumbnail: '/thumbnails/transparent.png',
+		category: 'boxes',
+		tags: ['standard', 'simple', 'versatile'],
+	},
+	{
+		id: 'cakebox',
+		name: 'Cake Box',
+		type: 'cakebox',
+		thumbnail: '/thumbnails/cakebox.png',
+		category: 'boxes',
+		tags: ['standard', 'simple', 'versatile'],
+	},
+	{
+		id: 'fries',
+		name: 'Fries Box',
+		type: 'fries',
+		thumbnail: '/thumbnails/fries.png',
+		category: 'boxes',
+		tags: ['standard', 'simple', 'versatile'],
+	},
 ];
 
 export default function SelectModelPage() {

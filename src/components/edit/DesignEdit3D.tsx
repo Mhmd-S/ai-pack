@@ -1,5 +1,12 @@
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Grid, Environment, PerspectiveCamera } from '@react-three/drei';
+import {
+	OrbitControls,
+	Grid,
+	Environment,
+	PerspectiveCamera,
+	GizmoViewport,
+	GizmoHelper,
+} from '@react-three/drei';
 import { OBJModelEditProps } from '@/lib/definitions';
 import { useState } from 'react';
 import { useLoader } from '@react-three/fiber';
@@ -20,9 +27,15 @@ const OBJModelEdit: React.FC<OBJModelEditProps> = ({
 
 	const [isLoading, setIsLoading] = useState(true);
 	const [selected, setSelected] = useState<Object3D[]>([]);
+	const [decalSelected, setDecalSelected] = useState<Object3D[]>([]);
 
 	const handleSelectionChange = (selectedObjects: Object3D[]) => {
+		if (selected === selectedObjects) return;
 		setSelected(selectedObjects);
+	};
+
+	const handleDecalSelectionChange = (selectedObjects: Object3D[]) => {
+		setDecalSelected(selectedObjects);
 	};
 
 	return (
@@ -50,7 +63,14 @@ const OBJModelEdit: React.FC<OBJModelEditProps> = ({
 					maxAzimuthAngle={Math.PI / 1}
 					minPolarAngle={Math.PI / 6}
 					maxPolarAngle={Math.PI - Math.PI / 2}
+					maxDistance={100}
+					maxZoom={10}
+					enableRotate={!!decalSelected}
 				/>
+
+				<GizmoHelper alignment="bottom-right" margin={[100, 100]}>
+					<GizmoViewport labelColor="white" axisHeadScale={1} />
+				</GizmoHelper>
 
 				<Grid
 					position={[0, -1, 0]} // Adjust position as needed
@@ -69,26 +89,25 @@ const OBJModelEdit: React.FC<OBJModelEditProps> = ({
 				/>
 
 				<Environment preset="city" />
-				{/* <group position={[0, -1, 0]}> */}
-					<Select onChangePointerUp={handleSelectionChange}>
-						{obj.children.map(
-							(child: THREE.Object3D, index: number) => {
-								if (child instanceof THREE.Mesh) {
-									return (
-										<FaceMesh
-											key={index}
-											geometry={child.geometry}
-											material={child.material}
-										/>
-									);
-								}
-								return null;
+				<Select onChangePointerUp={handleSelectionChange}>
+					{obj.children.map(
+						(child: THREE.Object3D, index: number) => {
+							if (child instanceof THREE.Mesh) {
+								return (
+									<FaceMesh
+										key={index}
+										geometry={child.geometry}
+										material={child.material}
+										handleDecalSelectionChange={handleDecalSelectionChange}
+									/>
+								);
 							}
-						)}
-					</Select>
-				{/* </group> */}
+							return null;
+						}
+					)}
+				</Select>
 			</Canvas>
-			<Panel selected={selected} />
+			<Panel selected={selected || decalSelected} />
 
 			{isLoading && (
 				<div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm z-20">

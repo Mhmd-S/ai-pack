@@ -1,8 +1,8 @@
 // ... existing code ...
 import { useState, useEffect, useRef } from 'react'; // Added useEffect, useRef
-import { useSelect, Edges, useCursor } from '@react-three/drei';
+import { useSelect, Edges, useCursor, Select } from '@react-three/drei';
 import { useThree } from '@react-three/fiber'; // Added useThree
-import { useControls } from '@/components/edit/MultiLeva';
+import { useControlsFaceMesh } from '@/components/edit/MultiLeva';
 import * as THREE from 'three';
 import { rgbToHex } from '@/lib/utils';
 import ImageDecal from './Decals/ImageDecal';
@@ -10,21 +10,24 @@ import ImageDecal from './Decals/ImageDecal';
 interface FaceMeshProps {
 	geometry: THREE.BufferGeometry;
 	material: THREE.Material;
+	handleDecalSelectionChange: (selected: THREE.Object3D[]) => void;
 }
 
-const FaceMesh = ({ geometry, material }: FaceMeshProps) => {
-	const [hovered, setHover] = useState(false);
-	const selectedUserDataStores = useSelect().map((sel) => sel.userData.store); // Renamed for clarity
-	const [images, setImages] = useState<string[]>([]);
+const FaceMesh = ({ geometry, material, handleDecalSelectionChange }: FaceMeshProps) => {
 	const meshRef = useRef<THREE.Mesh>(null!); // Ref for this specific mesh instance
 
+	const [hovered, setHover] = useState(false);
+	const [images, setImages] = useState<string[]>([]);
+
+	const selectedUserDataStores = useSelect().map((sel) => sel.userData.store); // Renamed for clarity
+
 	// gl: WebGLRenderer, scene, camera, raycaster, pointer (normalized mouse coords) are from useThree
-	const { gl, scene, camera, raycaster } = useThree();
+	const { gl, camera, raycaster } = useThree();
 
 	const defaultColor = { r: 255, g: 255, b: 255 };
 
 	// Assuming 'store' is unique per FaceMesh instance or a group it belongs to
-	const [store, materialProps] = useControls(selectedUserDataStores, {
+	const [store, materialProps] = useControlsFaceMesh(selectedUserDataStores, {
 		color: { value: defaultColor },
 	});
 
@@ -95,6 +98,7 @@ const FaceMesh = ({ geometry, material }: FaceMeshProps) => {
 			onPointerOver={(e) => (e.stopPropagation(), setHover(true))}
 			onPointerOut={() => setHover(false)}
 			userData={{ store }}
+			onClick={()=>console.log(selectedUserDataStores)}
 			// onDragOver and onDrop are removed from here
 		>
 			<Edges
@@ -108,13 +112,17 @@ const FaceMesh = ({ geometry, material }: FaceMeshProps) => {
 			</Edges>
 			<meshStandardMaterial color={rgbToHex(materialProps?.color)} />
 
-			{images.map((image, index) => (
-				<ImageDecal
-					url={image}
-					parentGeometry={geometry}
-					key={`${image}-${index}`} // More robust key
-				/>
-			))}
+			<Select onChange={handleDecalSelectionChange}>
+				{meshRef.current &&
+					images.map((image, index) => (
+						<ImageDecal
+							meshRef={meshRef}
+							url={image}
+							parentGeometry={geometry}
+							key={`${image}-${index}`} // More robust key
+					/>
+				))}
+			</Select>
 		</mesh>
 	);
 };
