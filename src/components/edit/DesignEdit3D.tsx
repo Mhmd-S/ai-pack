@@ -34,7 +34,7 @@ const OBJModelEdit: React.FC<OBJModelEditProps> = ({
 
 	const locked = useMemo(() => {
 		if (!selected && selected?.length == 0) return false;
-		selected[0]?.userData?.isDecal;
+		return !!selected[0]?.userData?.isDecal;
 	}, [selected]);
 
 	return (
