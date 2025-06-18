@@ -100,7 +100,7 @@ const FaceMesh = ({ geometry, material }: FaceMeshProps) => {
 		>
 			<Edges
 				visible={isSelected}
-				lineWidth={3}
+				lineWidth={5}
 				color="#ff6600"
 				scale={1}
 				renderOrder={1000}

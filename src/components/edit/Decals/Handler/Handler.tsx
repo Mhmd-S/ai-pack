@@ -33,24 +33,24 @@ const Handler = ({
 		switch (type) {
 			case 'corner':
 				return {
-					radius: 0.03,
+					radius: 0.008,
 					color: '#ff6600',
 				};
 			case 'edge-x':
 				return {
-					radius: 0.02,
+					radius: 0.008,
 					scaleY: 2, // Vertical orientation for X-axis handlers
 					color: '#ff6600',
 				};
 			case 'edge-y':
 				return {
-					radius: 0.02,
+					radius: 0.008,
 					scaleX: 2, // Horizontal orientation for Y-axis handlers
 					color: '#ff6600',
 				};
 			default:
 				return {
-					radius: 0.03,
+					radius: 0.008,
 					color: '#ff6600',
 				};
 		}
@@ -100,9 +100,9 @@ const Handler = ({
 					onPointerOut={() => onHover(false)}
 				>
 					{['edge-x', 'edge-y'].includes(type) ? (
-						<circleGeometry args={[radius, 32]} />
+						<circleGeometry args={[radius * 1, 16]} />
 					) : (
-						<capsuleGeometry args={[0.04, 0.01]} />
+						<capsuleGeometry args={[0.008, 0.012, 32, 64]} />
 					)}
 					<meshBasicMaterial
 						transparent
@@ -113,9 +113,9 @@ const Handler = ({
 			</DragControls>
 			<mesh position={position} scale={[scaleX, scaleY, 1]}>
 				{['edge-x', 'edge-y'].includes(type) ? (
-					<circleGeometry args={[radius, 32]} />
+					<circleGeometry args={[radius * 1, 16]} />
 				) : (
-					<capsuleGeometry args={[0.02, 0.01]} />
+					<capsuleGeometry args={[0.008, 0.008, 32, 64]} />
 				)}
 				<meshBasicMaterial color={color} />
 			</mesh>
