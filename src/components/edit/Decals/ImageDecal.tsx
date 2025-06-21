@@ -1,12 +1,9 @@
-import {
-	Decal,
-	useTexture,
-	useSelect,
-	useCursor,
-	DragControls,
-} from '@react-three/drei';
+import { Decal, useTexture, useSelect, useCursor } from '@react-three/drei';
+import { useDrag } from '@use-gesture/react';
+import { useThree } from '@react-three/fiber';
+
 import * as THREE from 'three';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useControlsDecals } from '../MultiLeva';
 import HandlerGroup from './Handler/HandlerGroup';
 import DecalMesh from './DecalMesh';
@@ -26,6 +23,9 @@ const ImageDecal = ({ url, parentGeometry, meshRef }: ImageDecalProps) => {
 	const [hovered, setHover] = useState(false);
 	const [isResizing, setIsResizing] = useState(false);
 
+	// Get access to R3F's state, including camera and raycaster
+	const { camera, raycaster } = useThree();
+
 	const texture = useTexture(url);
 	const standardWidth = 0.5;
 	const aspectRatio = texture.image
@@ -35,17 +35,18 @@ const ImageDecal = ({ url, parentGeometry, meshRef }: ImageDecalProps) => {
 
 	const selectedUserDataStores = useSelect().map((sel) => sel.userData.store);
 
-	// Calculate bounds from parent geometry
-	const bounds = parentGeometry.boundingBox || new THREE.Box3().setFromBufferAttribute(
-		parentGeometry.attributes.position as THREE.BufferAttribute
-	);
+	const bounds =
+		parentGeometry.boundingBox ||
+		new THREE.Box3().setFromBufferAttribute(
+			parentGeometry.attributes.position as THREE.BufferAttribute
+		);
 	const center = bounds.getCenter(new THREE.Vector3());
 
 	const [store, materialProps, set] = useControlsDecals(
 		selectedUserDataStores,
 		{
 			position: {
-				value: [center.x, center.y, center.z],
+				value: [center.x, center.y, center.z + 0.01],
 			},
 			scale: {
 				value: [standardWidth, standardHeight],
@@ -58,16 +59,11 @@ const ImageDecal = ({ url, parentGeometry, meshRef }: ImageDecalProps) => {
 	const isSelected = !!selectedUserDataStores.find((s) => s === store);
 	const currentScale = materialProps.scale || [1, 1];
 
-	// Calculate drag limits based on parent geometry bounds with some padding
-	const padding = 0.1;
-	const dragLimits: [[number, number], [number, number], [number, number]] = [
-		[bounds.min.x + padding, bounds.max.x - padding],
-		[bounds.min.y + padding, bounds.max.y - padding],
-		[materialProps.position[2], materialProps.position[2]], // Keep Z constant
-	];
-
-	const handleScaleChange = (newScale: [number, number]) => {
-		set({ scale: newScale });
+	const handleUpdate = (newProps: {
+		scale: [number, number];
+		position: [number, number, number];
+	}) => {
+		set({ scale: newProps.scale, position: newProps.position });
 	};
 
 	const handlePointerOver = (e: any) => {
@@ -75,48 +71,99 @@ const ImageDecal = ({ url, parentGeometry, meshRef }: ImageDecalProps) => {
 		setHover(true);
 	};
 
-	const handleDrag = (
-		localMatrix: THREE.Matrix4
-	) => {
-		if (isResizing && isSelected) return;
+	// Refs to store drag-related 3D data
+	const dragPlane = useRef(new THREE.Plane());
+	const dragStartPoint = useRef(new THREE.Vector3());
+	const dragOffset = useRef(new THREE.Vector3());
 
-		const currentPosition = new THREE.Vector3();
-		localMatrix.decompose(
-			currentPosition,
-			new THREE.Quaternion(),
-			new THREE.Vector3()
-		);
+	const bind = useDrag(
+		({ event, down, first, last }) => {
+			if (!isSelected || isResizing) return;
 
-		// Clamp position to stay within bounds
-		const clampedX = Math.max(
-			dragLimits[0][0],
-			Math.min(dragLimits[0][1], currentPosition.x)
-		);
-		const clampedY = Math.max(
-			dragLimits[1][0], 
-			Math.min(dragLimits[1][1], currentPosition.y)
-		);
+			// We are working with a non-HTML element, so we need to access the original event
+			const e = event as unknown as PointerEvent;
 
-		const newPosition: [number, number, number] = [
-			clampedX, 
-			clampedY, 
-			materialProps.position[2]
-		];
+			// Only proceed if actively dragging (mouse/pointer is down)
+			if (!down) return;
 
-		set({ position: newPosition });
-	};
+			if (first) {
+				// On first drag event, calculate the drag plane
+
+				// 1. Find intersection point on the DecalMesh
+				const intersection = (e as any).intersections[0];
+				if (!intersection) return; // Should not happen if drag starts on the object
+				dragStartPoint.current.copy(intersection.point);
+
+				// 2. Create a plane at that point, oriented towards the camera
+				dragPlane.current.setFromNormalAndCoplanarPoint(
+					camera.getWorldDirection(dragPlane.current.normal),
+					dragStartPoint.current
+				);
+
+				// 3. Calculate offset between current decal position and drag start point
+				const currentPosition = new THREE.Vector3(
+					materialProps.position[0],
+					materialProps.position[1],
+					materialProps.position[2]
+				);
+				dragOffset.current.subVectors(
+					currentPosition,
+					dragStartPoint.current
+				);
+
+				// Don't update position on first event, just set up the plane
+				return;
+			}
+
+			// On every subsequent drag event, raycast onto the plane
+			const intersectionPoint = new THREE.Vector3();
+			raycaster.ray.intersectPlane(dragPlane.current, intersectionPoint);
+
+			// Apply the offset to maintain relative position
+			intersectionPoint.add(dragOffset.current);
+
+			// Calculate half extents of the decal based on current scale
+			const halfWidth = currentScale[0] / 2;
+			const halfHeight = currentScale[1] / 2;
+
+			// Clamp the position to stay within parent geometry bounds
+			// considering the decal's dimensions
+			const clampedX = Math.max(
+				bounds.min.x + halfWidth,
+				Math.min(bounds.max.x - halfWidth, intersectionPoint.x)
+			);
+			const clampedY = Math.max(
+				bounds.min.y + halfHeight,
+				Math.min(bounds.max.y - halfHeight, intersectionPoint.y)
+			);
+
+			// The intersection point is the new position (clamped to bounds)
+			const newPosition: [number, number, number] = [
+				clampedX,
+				clampedY,
+				center.z,
+			];
+
+			// Update state via Leva controls
+			set({ position: newPosition });
+		},
+		{
+			// We need to use pointer events to get intersection data from R3F
+			eventOptions: { pointer: true } as any,
+		}
+	);
 
 	return (
 		<>
 			{/* Visual representation mesh */}
-			<DragControls
-				onDrag={handleDrag}
-				dragLimits={dragLimits}
-				autoTransform={false}
-			>
-				{/* A interactable interface for the user, the decal itself is too rigid to control directly */}
+			{/* A interactable interface for the user, the decal itself is too rigid to control directly */}
+			<group {...bind()}>
 				<DecalMesh
-					position={materialProps.position}
+					position={[
+						materialProps.position[0],
+						materialProps.position[1],
+						materialProps.position[2],
+					]}
 					scale={currentScale}
 					isSelected={isSelected}
 					isHovered={hovered}
@@ -124,27 +171,37 @@ const ImageDecal = ({ url, parentGeometry, meshRef }: ImageDecalProps) => {
 					onPointerOver={handlePointerOver}
 					onPointerOut={() => setHover(false)}
 				/>
-			</DragControls>
+			</group>
+
+			{/* The actual decal */}
+			<Decal
+				mesh={meshRef}
+				position={[
+					materialProps.position[0],
+					materialProps.position[1],
+					materialProps.position[2],
+				]}
+				scale={[currentScale[0], currentScale[1], currentScale[0]]}
+				map={texture}
+				rotation={new THREE.Euler(0, 0, 0)}
+				// A slightly higher offset can prevent z-fighting during drag
+				polygonOffsetFactor={-0.001}
+			/>
+
 			{/* Handler group for resize handles */}
 			{isSelected && (
 				<HandlerGroup
-					position={materialProps.position}
-					isResizing={isResizing}
+					position={[
+						materialProps.position[0],
+						materialProps.position[1],
+						materialProps.position[2],
+					]}
 					scale={currentScale}
-					onScaleChange={handleScaleChange}
+					onUpdate={handleUpdate}
 					onHover={setHover}
 					setIsResizing={setIsResizing}
 				/>
 			)}
-			{/* The actual decal */}
-			<Decal
-				mesh={meshRef}
-				position={materialProps.position}
-				scale={[currentScale[0], currentScale[1], currentScale[0]]}
-				map={texture}
-				rotation={new THREE.Euler(0, 0, 0)}
-				polygonOffsetFactor={0.001}
-			/>
 		</>
 	);
 };

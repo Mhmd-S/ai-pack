@@ -1,126 +1,106 @@
-import React from 'react';
-import { DragControls } from '@react-three/drei';
+import React, { useRef, useCallback } from 'react';
+import { useDrag } from '@use-gesture/react';
 import * as THREE from 'three';
+import { useThree } from '@react-three/fiber';
 
 interface HandlerProps {
-	id: string;
-	position: [number, number, number];
-	type: 'corner' | 'edge-x' | 'edge-y';
-	onDragStart: (handlerId: string) => void;
-	onDrag: (
-		handlerId: string,
-		localMatrix: THREE.Matrix4,
-		deltaLocalMatrix: THREE.Matrix4,
-		worldMatrix: THREE.Matrix4,
-		deltaWorldMatrix: THREE.Matrix4
-	) => void;
-	onDragEnd: (handlerId: string) => void;
-	onHover: (hovered: boolean) => void;
+  position: THREE.Vector3;
+  cursor: string;
+  scale: [number, number, number];
+  onDragStart: () => void;
+  // The key change from my flawed attempt: onDrag does NOT pass the handler config.
+  // It only passes the raw movement data.
+  onDrag: (movement: THREE.Vector2) => void;
+  onDragEnd: () => void;
+  onHover: (hovered: boolean) => void;
 }
 
+/**
+ * A single interactive resize handle.
+ * This component is "dumb" - it only knows how to translate a screen gesture
+ * into a world-space movement vector and report it to its parent.
+ */
 const Handler = ({
-	id,
-	position,
-	type,
-	onDragStart,
-	onDrag,
-	onDragEnd,
-	onHover,
+  position,
+  cursor,
+  scale,
+  onDragStart,
+  onDrag,
+  onDragEnd,
+  onHover,
 }: HandlerProps) => {
-	const handleRef = React.useRef<THREE.Mesh>(null);
-	// Different sizes and orientations for different handler types
-	const getHandlerProps = () => {
-		switch (type) {
-			case 'corner':
-				return {
-					radius: 0.008,
-					color: '#ff6600',
-				};
-			case 'edge-x':
-				return {
-					radius: 0.008,
-					scaleY: 2, // Vertical orientation for X-axis handlers
-					color: '#ff6600',
-				};
-			case 'edge-y':
-				return {
-					radius: 0.008,
-					scaleX: 2, // Horizontal orientation for Y-axis handlers
-					color: '#ff6600',
-				};
-			default:
-				return {
-					radius: 0.008,
-					color: '#ff6600',
-				};
-		}
-	};
+  const { camera, raycaster, size } = useThree();
 
-	const { radius, scaleX = 1, scaleY = 1, color } = getHandlerProps();
+  const dragState = useRef({
+    plane: new THREE.Plane(),
+    initialPoint: new THREE.Vector3(),
+  }).current;
 
-	const handleDragStart = () => {
-		onDragStart(id);
-	};
+  const handlePointerOver = useCallback((e: any) => {
+    e.stopPropagation();
+    document.body.style.cursor = cursor;
+    onHover(true);
+  }, [onHover, cursor]);
 
-	const handleDrag = (
-		localMatrix: THREE.Matrix4,
-		deltaLocalMatrix: THREE.Matrix4,
-		worldMatrix: THREE.Matrix4,
-		deltaWorldMatrix: THREE.Matrix4
-	) => {
-		onDrag(
-			id,
-			localMatrix,
-			deltaLocalMatrix,
-			worldMatrix,
-			deltaWorldMatrix
-		);
-	};
+  const handlePointerOut = useCallback(() => {
+    if (document.body.style.cursor === cursor) {
+      document.body.style.cursor = 'auto';
+    }
+    onHover(false);
+  }, [onHover, cursor]);
 
-	const handleDragEnd = () => {
-		onDragEnd(id);
-	};
+  const bind = useDrag(
+    (state) => {
+      const { active, first, last, xy: [px, py] } = state;
 
-	return (
-		<>
-			{' '}
-			<DragControls
-				onDragStart={handleDragStart}
-				onDrag={handleDrag}
-				onDragEnd={handleDragEnd}
-			>
-				<mesh
-					ref={handleRef}
-					position={position}
-					scale={[scaleX, scaleY, 1]}
-					onPointerOver={(e) => {
-						e.stopPropagation();
-						onHover(true);
-					}}
-					onPointerOut={() => onHover(false)}
-				>
-					{['edge-x', 'edge-y'].includes(type) ? (
-						<circleGeometry args={[radius * 1, 16]} />
-					) : (
-						<capsuleGeometry args={[0.008, 0.012, 32, 64]} />
-					)}
-					<meshBasicMaterial
-						transparent
-						opacity={0}
-						visible={false}
-					/>
-				</mesh>
-			</DragControls>
-			<mesh position={position} scale={[scaleX, scaleY, 1]}>
-				{['edge-x', 'edge-y'].includes(type) ? (
-					<circleGeometry args={[radius * 1, 16]} />
-				) : (
-					<capsuleGeometry args={[0.008, 0.008, 32, 64]} />
-				)}
-				<meshBasicMaterial color={color} />
-			</mesh>
-		</>
-	);
+      const ndc = new THREE.Vector2(
+        (px / size.width) * 2 - 1,
+        -(py / size.height) * 2 + 1
+      );
+
+      raycaster.setFromCamera(ndc, camera);
+
+      if (first) {
+        onDragStart();
+        dragState.plane.setFromNormalAndCoplanarPoint(
+          camera.getWorldDirection(new THREE.Vector3()),
+          position
+        );
+        raycaster.ray.intersectPlane(dragState.plane, dragState.initialPoint);
+      }
+
+      if (active) {
+        const currentPoint = new THREE.Vector3();
+        if (raycaster.ray.intersectPlane(dragState.plane, currentPoint)) {
+          const movement = new THREE.Vector2(
+            currentPoint.x - dragState.initialPoint.x,
+            currentPoint.y - dragState.initialPoint.y
+          );
+          onDrag(movement);
+        }
+      }
+
+      if (last) {
+        onDragEnd();
+        handlePointerOut();
+      }
+    },
+    {}
+  );
+
+  return (
+    <mesh
+      position={position}
+      scale={scale}
+      onPointerOver={handlePointerOver}
+      onPointerOut={handlePointerOut}
+      {...bind()}
+      quaternion={camera.quaternion}
+    >
+      <planeGeometry args={[0.02, 0.02]} />
+      <meshBasicMaterial color="#ff6600" toneMapped={false} depthTest={false} transparent />
+    </mesh>
+  );
 };
 
 export default Handler;
