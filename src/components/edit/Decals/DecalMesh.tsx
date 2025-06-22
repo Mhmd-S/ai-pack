@@ -7,6 +7,7 @@ interface DecalMeshProps {
 	isSelected: boolean;
 	isHovered: boolean;
 	store: any;
+	rotation: number;
 	onPointerOver: (e: THREE.Event) => void;
 	onPointerOut: () => void;
 }
@@ -17,12 +18,14 @@ const DecalMesh = ({
 	isSelected,
 	isHovered,
 	store,
+	rotation,
 	onPointerOver,
 	onPointerOut,
 }: DecalMeshProps) => {
 	return (
 		<mesh
 			position={[position[0], position[1], position[2] + 0.02]}
+			rotation={new THREE.Euler(0,0, rotation)}
 			onPointerOver={onPointerOver}
 			onPointerOut={onPointerOut}
 			userData={{ store, isDecal: true }}

@@ -16,6 +16,7 @@ import * as THREE from 'three';
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 import { Object3D } from 'three';
 import FaceMesh from '@/components/edit/FaceMesh';
+import FloatingToolbar from './FloatingToolbar';
 
 // Main component
 const OBJModelEdit: React.FC<OBJModelEditProps> = ({

@@ -1,11 +1,12 @@
 import { Decal, useTexture, useSelect, useCursor } from '@react-three/drei';
 import { useDrag } from '@use-gesture/react';
 import { useThree } from '@react-three/fiber';
+import RotationHandler from '../Handler/RotationHandlert';
 
 import * as THREE from 'three';
 import { useState, useRef } from 'react';
 import { useControlsDecals } from '../MultiLeva';
-import HandlerGroup from './Handler/HandlerGroup';
+import HandlerGroup from '../Handler/HandlerGroup';
 import DecalMesh from './DecalMesh';
 
 interface ImageDecalProps {
@@ -17,11 +18,13 @@ interface ImageDecalProps {
 interface DecalProps {
 	position: [number, number, number];
 	scale: [number, number];
+	rotaion: number;
 }
 
 const ImageDecal = ({ url, parentGeometry, meshRef }: ImageDecalProps) => {
 	const [hovered, setHover] = useState(false);
 	const [isResizing, setIsResizing] = useState(false);
+	const [isRotating, setIsRotating] = useState(false);
 
 	// Get access to R3F's state, including camera and raycaster
 	const { camera, raycaster } = useThree();
@@ -51,6 +54,7 @@ const ImageDecal = ({ url, parentGeometry, meshRef }: ImageDecalProps) => {
 			scale: {
 				value: [standardWidth, standardHeight],
 			},
+			rotation: { value: 0 },
 		}
 	) as [any, DecalProps, (props: Partial<DecalProps>) => void];
 
@@ -58,6 +62,11 @@ const ImageDecal = ({ url, parentGeometry, meshRef }: ImageDecalProps) => {
 
 	const isSelected = !!selectedUserDataStores.find((s) => s === store);
 	const currentScale = materialProps.scale || [1, 1];
+	const currentRotation = materialProps.rotation || 0;
+
+	const handleRotationUpdate = (newRotation: number) => {
+		set({ rotation: newRotation });
+	};
 
 	const handleUpdate = (newProps: {
 		scale: [number, number];
@@ -78,7 +87,7 @@ const ImageDecal = ({ url, parentGeometry, meshRef }: ImageDecalProps) => {
 
 	const bind = useDrag(
 		({ event, down, first, last }) => {
-			if (!isSelected || isResizing) return;
+			if (!isSelected || isResizing || isRotating) return;
 
 			// We are working with a non-HTML element, so we need to access the original event
 			const e = event as unknown as PointerEvent;
@@ -164,6 +173,7 @@ const ImageDecal = ({ url, parentGeometry, meshRef }: ImageDecalProps) => {
 						materialProps.position[1],
 						materialProps.position[2],
 					]}
+					rotation={currentRotation}
 					scale={currentScale}
 					isSelected={isSelected}
 					isHovered={hovered}
@@ -183,24 +193,41 @@ const ImageDecal = ({ url, parentGeometry, meshRef }: ImageDecalProps) => {
 				]}
 				scale={[currentScale[0], currentScale[1], currentScale[0]]}
 				map={texture}
-				rotation={new THREE.Euler(0, 0, 0)}
+				rotation={new THREE.Euler(0, 0, currentRotation)}
 				// A slightly higher offset can prevent z-fighting during drag
 				polygonOffsetFactor={-0.001}
 			/>
 
+			{/* Add rotation handler */}
+
 			{/* Handler group for resize handles */}
 			{isSelected && (
-				<HandlerGroup
-					position={[
-						materialProps.position[0],
-						materialProps.position[1],
-						materialProps.position[2],
-					]}
-					scale={currentScale}
-					onUpdate={handleUpdate}
-					onHover={setHover}
-					setIsResizing={setIsResizing}
-				/>
+				<>
+					<HandlerGroup
+						position={[
+							materialProps.position[0],
+							materialProps.position[1],
+							materialProps.position[2],
+						]}
+						scale={currentScale}
+						rotation={currentRotation}
+						onUpdate={handleUpdate}
+						onHover={setHover}
+						setIsResizing={setIsResizing}
+					/>
+					<RotationHandler
+						position={[
+							materialProps.position[0],
+							materialProps.position[1],
+							materialProps.position[2],
+						]}
+						scale={currentScale}
+						rotation={currentRotation}
+						onUpdate={handleRotationUpdate}
+						onHover={setHover}
+						setIsRotating={setIsRotating}
+					/>
+				</>
 			)}
 		</>
 	);
