@@ -20,10 +20,6 @@ interface FloatingToolbarProps {
 	onSetTool: (tool: ActiveTool) => void;
 	dropperColor: string;
 	onDropperColorChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
-	modelScale: { x: number; y: number; z: number };
-	onScaleChange: (axis: 'x' | 'y' | 'z', value: string) => void;
-	modelRotation: { x: number; y: number; z: number };
-	onRotationChange: (axis: 'x' | 'y' | 'z', value: string) => void;
 	onShowInstructions: () => void;
 	isFaceSelected: boolean;
 	setShowTextModal: (state: boolean) => void;
@@ -42,10 +38,6 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
 	onSetTool,
 	dropperColor,
 	onDropperColorChange,
-	modelScale,
-	onScaleChange,
-	modelRotation,
-	onRotationChange,
 	onShowInstructions,
 	isFaceSelected,
 	textSettings,
@@ -119,69 +111,6 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
 			>
 				<Maximize className="h-5 w-5" />
 			</Button>
-			{activeTool === 'measurements' && (
-				<div className="p-2 bg-slate-600/50 rounded space-y-2">
-					<p className="text-xs text-slate-300 mb-1 font-medium">
-						Scale Controls
-					</p>
-					<div className="grid grid-cols-3 gap-2 items-center">
-						<div>
-							<label
-								htmlFor="scale-x"
-								className="text-xs text-slate-300 mb-0.5 block text-center"
-							>
-								X
-							</label>
-							<Input
-								id="scale-x"
-								type="number"
-								step="0.1"
-								value={modelScale.x}
-								onChange={(e) =>
-									onScaleChange('x', e.target.value)
-								}
-								className="w-16 h-8 p-1 bg-slate-500 border-slate-400 text-slate-100 text-xs"
-							/>
-						</div>
-						<div>
-							<label
-								htmlFor="scale-y"
-								className="text-xs text-slate-300 mb-0.5 block text-center"
-							>
-								Y
-							</label>
-							<Input
-								id="scale-y"
-								type="number"
-								step="0.1"
-								value={modelScale.y}
-								onChange={(e) =>
-									onScaleChange('y', e.target.value)
-								}
-								className="w-16 h-8 p-1 bg-slate-500 border-slate-400 text-slate-100 text-xs"
-							/>
-						</div>
-						<div>
-							<label
-								htmlFor="scale-z"
-								className="text-xs text-slate-300 mb-0.5 block text-center"
-							>
-								Z
-							</label>
-							<Input
-								id="scale-z"
-								type="number"
-								step="0.1"
-								value={modelScale.z}
-								onChange={(e) =>
-									onScaleChange('z', e.target.value)
-								}
-								className="w-16 h-8 p-1 bg-slate-500 border-slate-400 text-slate-100 text-xs"
-							/>
-						</div>
-					</div>
-				</div>
-			)}
 
 			{/* Text Tool */}
 			{isFaceSelected && (

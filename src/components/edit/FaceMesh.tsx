@@ -1,11 +1,13 @@
 // ... existing code ...
 import { useState, useEffect, useRef } from 'react'; // Added useEffect, useRef
-import { useSelect, Edges, useCursor, Select } from '@react-three/drei';
+import { useSelect, Edges, useCursor } from '@react-three/drei';
 import { useThree } from '@react-three/fiber'; // Added useThree
 import { useControlsFaceMesh } from '@/components/edit/MultiLeva';
+import { button } from 'leva';
 import * as THREE from 'three';
 import { rgbToHex } from '@/lib/utils';
 import ImageDecal from './Decals/ImageDecal';
+import TextDecal from './Decals/TextDecal';
 
 interface FaceMeshProps {
 	geometry: THREE.BufferGeometry;
@@ -28,6 +30,15 @@ const FaceMesh = ({ geometry, material }: FaceMeshProps) => {
 	// Assuming 'store' is unique per FaceMesh instance or a group it belongs to
 	const [store, materialProps] = useControlsFaceMesh(selectedUserDataStores, {
 		color: { value: defaultColor },
+		'Add Text': button((get) =>
+			alert(`Number value is ${get('number').toFixed(2)}`)
+		),
+		'Add Shape': button((get) =>
+			alert(`Number value is ${get('number').toFixed(2)}`)
+		),
+		'Add Image': button((get) =>
+			alert(`Number value is ${get('number').toFixed(2)}`)
+		),
 	});
 
 	const isSelected = !!selectedUserDataStores.find((s) => s === store);
@@ -108,7 +119,9 @@ const FaceMesh = ({ geometry, material }: FaceMeshProps) => {
 				<meshBasicMaterial transparent color="#333" depthTest={false} />
 			</Edges>
 			<meshStandardMaterial color={rgbToHex(materialProps?.color)} />
-			
+
+			<TextDecal meshRef={meshRef} parentGeometry={geometry} text={"Hello"} />
+
 			{meshRef.current &&
 				images.map((image, index) => (
 					<ImageDecal

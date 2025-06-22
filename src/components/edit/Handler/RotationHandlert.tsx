@@ -86,7 +86,7 @@ const RotationHandler = ({
 	return (
 		<group {...bind()}>
         <Circle
-            args={[0.04, 32]} // Increased radius for easier grabbing
+            args={[0.08, 32]} // Increased radius for easier grabbing
             position={handlerPosition}
             onPointerOver={(e) => {
                 e.stopPropagation();

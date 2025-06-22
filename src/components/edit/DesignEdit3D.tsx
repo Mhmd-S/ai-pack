@@ -16,7 +16,6 @@ import * as THREE from 'three';
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 import { Object3D } from 'three';
 import FaceMesh from '@/components/edit/FaceMesh';
-import FloatingToolbar from './FloatingToolbar';
 
 // Main component
 const OBJModelEdit: React.FC<OBJModelEditProps> = ({
@@ -89,6 +88,7 @@ const OBJModelEdit: React.FC<OBJModelEditProps> = ({
 				/>
 
 				<Environment preset="city" />
+				
 				<Select onChangePointerUp={handleSelectionChange}>
 					{obj.children.map(
 						(child: THREE.Object3D, index: number) => {
