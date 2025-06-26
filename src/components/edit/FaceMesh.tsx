@@ -44,6 +44,8 @@ const FaceMesh = ({ geometry, material }: FaceMeshProps) => {
 	const isSelected = !!selectedUserDataStores.find((s) => s === store);
 	useCursor(hovered);
 
+
+	// Logic for dropping images on a face
 	useEffect(() => {
 		const canvas = gl.domElement;
 
@@ -116,11 +118,16 @@ const FaceMesh = ({ geometry, material }: FaceMeshProps) => {
 				scale={1}
 				renderOrder={1000}
 			>
-				<meshBasicMaterial transparent color="#333" depthTest={false} />
+				<meshBasicMaterial transparent side={2} color="#333" depthTest={false} />
 			</Edges>
-			<meshStandardMaterial color={rgbToHex(materialProps?.color)} />
 
-			<TextDecal meshRef={meshRef} parentGeometry={geometry} text={"Hello"} />
+			<meshStandardMaterial color={rgbToHex(materialProps?.color)}/>
+
+			<TextDecal
+				meshRef={meshRef}
+				parentGeometry={geometry}
+				text={'Hello'}
+			/>
 
 			{meshRef.current &&
 				images.map((image, index) => (

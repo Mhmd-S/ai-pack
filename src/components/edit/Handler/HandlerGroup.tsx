@@ -12,13 +12,14 @@ interface HandlerConfig {
 interface HandlerGroupProps {
   position: [number, number, number];
   scale: [number, number];
-  rotation: number;
+  rotation: [number,number,number];
   onUpdate: (newProps: {
     scale: [number, number];
     position: [number, number, number];
   }) => void;
   onHover: (hovered: boolean) => void;
   setIsResizing: (isResizing: boolean) => void;
+  isText?: boolean
 }
 
 const handlers: HandlerConfig[] = [
@@ -45,6 +46,7 @@ const HandlerGroup = ({
   onUpdate,
   onHover,
   setIsResizing,
+  isText,
 }: HandlerGroupProps) => {
   const dragInfo = useRef({
     pivotPoint: new THREE.Vector3(),
@@ -86,7 +88,7 @@ const HandlerGroup = ({
     );
     
     // CHANGED: Get the world rotation and invert it to transform movement into local space
-    const rotationMatrix = new THREE.Matrix4().makeRotationZ(rotation);
+    const rotationMatrix = new THREE.Matrix4().makeRotationZ(rotation[2]);
     dragInfo.inverseRotationMatrix.copy(rotationMatrix).invert();
   };
 
@@ -144,7 +146,7 @@ const HandlerGroup = ({
     }
     
     // CHANGED: Rotate the local center offset back into world space and add to initial position
-    const worldCenterOffset = centerOffset.applyMatrix4(new THREE.Matrix4().makeRotationZ(rotation));
+    const worldCenterOffset = centerOffset.applyMatrix4(new THREE.Matrix4().makeRotationZ(rotation[2]));
     const newPosition: [number, number, number] = [
         initialPosition.x + worldCenterOffset.x,
         initialPosition.y + worldCenterOffset.y,
@@ -164,8 +166,10 @@ const HandlerGroup = ({
   // CHANGED: The main group now controls position and rotation.
   // The strange division by 12 is kept from your original code.
   return (
-    <group position={[position[0], position[1], position[2]]} rotation={new THREE.Euler(0, 0, rotation)}>
+    <group position={[position[0], position[1], position[2]]} rotation={new THREE.Euler(rotation[0], rotation[1], rotation[2])}>
       {handlers.map((handler) => {
+
+        if (isText && (handler.id === "top" || handler.id === "bottom")) return;
         // Determine visual scale for edge handlers to make them look like bars
         const visualScale: [number, number, number] = [1, 1, 1];
         if (handler.type === 'edge-x') visualScale[1] = 2.5;

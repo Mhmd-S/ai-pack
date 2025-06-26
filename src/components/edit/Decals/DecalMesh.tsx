@@ -7,7 +7,7 @@ interface DecalMeshProps {
 	isSelected: boolean;
 	isHovered: boolean;
 	store: any;
-	rotation: number;
+	rotation: [number, number, number];
 	onPointerOver: (e: THREE.Event) => void;
 	onPointerOut: () => void;
 }
@@ -25,14 +25,14 @@ const DecalMesh = ({
 	return (
 		<mesh
 			position={[position[0], position[1], position[2] + 0.02]}
-			rotation={new THREE.Euler(0,0, rotation)}
+			rotation={new THREE.Euler(rotation[0],rotation[1], rotation[2])}
 			onPointerOver={onPointerOver}
 			onPointerOut={onPointerOut}
 			userData={{ store, isDecal: true }}
 			
 		>
 			<planeGeometry args={scale} />
-			<meshBasicMaterial transparent opacity={0.3} />
+			<meshBasicMaterial transparent opacity={1} color="hotpink" />
 
 			{/* Selected state edges */}
 			<Edges

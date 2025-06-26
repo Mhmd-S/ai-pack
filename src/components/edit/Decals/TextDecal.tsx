@@ -3,9 +3,9 @@ import { useDrag } from '@use-gesture/react';
 import { useThree, ThreeEvent } from '@react-three/fiber';
 import RotationHandler from '../Handler/RotationHandlert';
 
-import TextTest from '@/components/edit/Decals/TextTest';
+import TextBox from '@/components/edit/Decals/TextBox';
 import * as THREE from 'three';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useControlsDecals } from '../MultiLeva';
 import HandlerGroup from '../Handler/HandlerGroup';
 import DecalMesh from './DecalMesh';
@@ -20,13 +20,14 @@ interface TextDecalProps {
 interface DecalProps {
 	position: [number, number, number];
 	scale: [number, number];
-	rotation: number;
+	rotation: [number, number, number];
 }
 
 const TextDecal = ({ text, parentGeometry, meshRef }: TextDecalProps) => {
 	const [hovered, setHover] = useState(false);
 	const [isResizing, setIsResizing] = useState(false);
 	const [isRotating, setIsRotating] = useState(false);
+	const [isEditing, setIsEditing] = useState(false);
 
 	// Get access to R3F's state, including camera and raycaster
 	const { camera, raycaster } = useThree();
@@ -47,17 +48,27 @@ const TextDecal = ({ text, parentGeometry, meshRef }: TextDecalProps) => {
 				value: [center.x, center.y, center.z + 0.01],
 			},
 			scale: {
-				value: [0.2, 0.2],
+				value: [0.2, 0.05],
 			},
-			rotation: { value: 0 },
+			size: {
+				value: 16,
+			},
+			color: {
+				value: '#000000',
+			},
+			'font family': {
+				value: 'San Serif',
+			},
+			rotation: [0, 0, 0],
 		}
 	) as [Store, DecalProps, (updates: Partial<DecalProps>) => void];
 
-	useCursor(hovered);
+const yRotation = Math.atan2(center.x, center.z);
+set({ rotation: [0, yRotation, 0] });
 
 	const isSelected = !!selectedUserDataStores.find((s) => s === store);
-	const currentScale = materialProps.scale || [1, 1];
-	const currentRotation = materialProps.rotation || 0;
+	const currentScale = materialProps.scale || [1, 0.5];
+	const currentRotation = materialProps.rotation || [0, 0, 0];
 
 	const handleRotationUpdate = (newRotation: number) => {
 		set({ rotation: newRotation });
@@ -70,7 +81,7 @@ const TextDecal = ({ text, parentGeometry, meshRef }: TextDecalProps) => {
 		set({ scale: newProps.scale, position: newProps.position });
 	};
 
-	const handlePointerOver = (e: ThreeEvent<PointerEvent>) => {
+	const handlePointerOver = (e: any) => {
 		e.stopPropagation();
 		setHover(true);
 	};
@@ -163,10 +174,11 @@ const TextDecal = ({ text, parentGeometry, meshRef }: TextDecalProps) => {
 			{/* A interactable interface for the user, the decal itself is too rigid to control directly */}
 			<group {...bind()}>
 				<DecalMesh
+					meshRef={meshRef}
 					position={[
 						materialProps.position[0],
 						materialProps.position[1],
-						materialProps.position[2],
+						materialProps.position[2] + 0.05,
 					]}
 					rotation={currentRotation}
 					scale={currentScale}
@@ -179,17 +191,22 @@ const TextDecal = ({ text, parentGeometry, meshRef }: TextDecalProps) => {
 			</group>
 
 			{/* The actual editable text */}
-			<group
+			<TextBox
 				position={[
 					materialProps.position[0],
 					materialProps.position[1],
 					materialProps.position[2],
 				]}
-				rotation={new THREE.Euler(0, 0, currentRotation)}
+				setIsEditing={setIsEditing}
+				rotation={currentRotation}
 				scale={[currentScale[0], currentScale[1], 1]}
-			>
-				<TextTest initialText={text} />
-			</group>
+				initialText={text}
+				color={materialProps.color}
+				size={materialProps.fontSize}
+				// fontFamily={materialProps['font family']}
+				isSelected={isSelected}
+				isEditing={isEditing}
+			/>
 
 			{/* Handler group for resize handles */}
 			{isSelected && (
@@ -205,6 +222,7 @@ const TextDecal = ({ text, parentGeometry, meshRef }: TextDecalProps) => {
 						onUpdate={handleUpdate}
 						onHover={setHover}
 						setIsResizing={setIsResizing}
+						isText
 					/>
 					<RotationHandler
 						position={[
