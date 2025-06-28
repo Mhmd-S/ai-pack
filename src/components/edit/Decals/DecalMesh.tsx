@@ -32,7 +32,7 @@ const DecalMesh = ({
 			
 		>
 			<planeGeometry args={scale} />
-			<meshBasicMaterial transparent opacity={1} color="hotpink" />
+			<meshBasicMaterial transparent opacity={0.4} color="hotpink" />
 
 			{/* Selected state edges */}
 			<Edges

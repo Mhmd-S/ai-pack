@@ -80,8 +80,9 @@ export const calculateFaceDetails = (mesh: THREE.Mesh) => {
 			if (projectedNormal.lengthSq() > 0.001) {
 				angleZX = Math.atan2(projectedNormal.x, projectedNormal.z);
 			}
+			const faceBoundingBox = new THREE.Box3().setFromPoints(bestFacePoints);
 
-			return { faceNormal, faceCenter, angleZX };
+			return { faceNormal, faceCenter, angleZX, boundingBox: faceBoundingBox };
 		}
 	}
 

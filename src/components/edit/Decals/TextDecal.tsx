@@ -17,6 +17,7 @@ interface TextDecalProps {
 	meshRef: React.RefObject<THREE.Mesh>;
 	rotation: number;
 	center: THREE.Vector3;
+	boundingBox: THREE.Box3;
 }
 
 interface DecalProps {
@@ -25,7 +26,7 @@ interface DecalProps {
 	rotation: [number, number, number];
 }
 
-const TextDecal = ({ text, parentGeometry, meshRef, rotation, center }: TextDecalProps) => {
+const TextDecal = ({ text, parentGeometry, meshRef, rotation, center, boundingBox }: TextDecalProps) => {
 	const [hovered, setHover] = useState(false);
 	const [isResizing, setIsResizing] = useState(false);
 	const [isRotating, setIsRotating] = useState(false);
@@ -35,13 +36,6 @@ const TextDecal = ({ text, parentGeometry, meshRef, rotation, center }: TextDeca
 	const { camera, raycaster } = useThree();
 
 	const selectedUserDataStores = useSelect().map((sel) => sel.userData.store);
-
-	const bounds =
-		parentGeometry.boundingBox ||
-		new THREE.Box3().setFromBufferAttribute(
-			parentGeometry.attributes.position as THREE.BufferAttribute
-		);
-	// const center = bounds.getCenter(new THREE.Vector3());
 
 	const [store, materialProps, set] = useControlsDecals(
 		selectedUserDataStores,
@@ -161,21 +155,46 @@ const TextDecal = ({ text, parentGeometry, meshRef, rotation, center }: TextDeca
 
 			// Clamp the position to stay within parent geometry bounds
 			// considering the decal's dimensions
-			const clampedX = Math.max(
-				bounds.min.x + halfWidth,
-				Math.min(bounds.max.x - halfWidth, intersectionPoint.x)
-			);
-			const clampedY = Math.max(
-				bounds.min.y + halfHeight,
-				Math.min(bounds.max.y - halfHeight, intersectionPoint.y)
-			);
+			const size = new THREE.Vector3();
+			boundingBox.getSize(size);
 
-			// The intersection point is the new position (clamped to bounds)
-			const newPosition: [number, number, number] = [
-				clampedX,
-				clampedY,
-				center.z,
-			];
+			let newPosition: [number, number, number];
+
+			// The smallest dimension of the bounding box tells us the plane's normal direction.
+			if (size.z < size.x && size.z < size.y) {
+				// XY plane is dominant (normal along Z)
+				const clampedX = Math.max(
+					boundingBox.min.x + halfWidth,
+					Math.min(boundingBox.max.x - halfWidth, intersectionPoint.x)
+				);
+				const clampedY = Math.max(
+					boundingBox.min.y + halfHeight,
+					Math.min(boundingBox.max.y - halfHeight, intersectionPoint.y)
+				);
+				newPosition = [clampedX, clampedY, center.z];
+			} else if (size.y < size.x && size.y < size.z) {
+				// XZ plane is dominant (normal along Y)
+				const clampedX = Math.max(
+					boundingBox.min.x + halfWidth,
+					Math.min(boundingBox.max.x - halfWidth, intersectionPoint.x)
+				);
+				const clampedZ = Math.max(
+					boundingBox.min.z + halfHeight,
+					Math.min(boundingBox.max.z - halfHeight, intersectionPoint.z)
+				);
+				newPosition = [clampedX, center.y, clampedZ];
+			} else {
+				// YZ plane is dominant (normal along X)
+				const clampedY = Math.max(
+					boundingBox.min.y + halfWidth,
+					Math.min(boundingBox.max.y - halfWidth, intersectionPoint.y)
+				);
+				const clampedZ = Math.max(
+					boundingBox.min.z + halfHeight,
+					Math.min(boundingBox.max.z - halfHeight, intersectionPoint.z)
+				);
+				newPosition = [center.x, clampedY, clampedZ];
+			}
 
 			// Update state via Leva controls
 			set({ position: newPosition });
@@ -196,7 +215,7 @@ const TextDecal = ({ text, parentGeometry, meshRef, rotation, center }: TextDeca
 					position={[
 						materialProps.position[0],
 						materialProps.position[1],
-						materialProps.position[2] + 0.01,
+						materialProps.position[2],
 					]}
 					rotation={materialProps.rotation}
 					scale={currentScale}

@@ -89,6 +89,7 @@ const FaceMesh = ({ geometry, material }: FaceMeshProps) => {
           text={"Hello"}
           rotation={details?.angleZX ?? 0}
           center={details?.faceCenter ?? new THREE.Vector3(0,0,0)}
+          boundingBox={details?.boundingBox ?? new THREE.Box3()}
         />
 
         {meshRef.current &&
