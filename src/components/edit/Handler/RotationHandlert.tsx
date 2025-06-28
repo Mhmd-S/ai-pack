@@ -17,7 +17,7 @@ const RotationHandler = ({
 	position,
 	scale,
 	rotation,
-	onUpdate,
+	ˇ,
 	onHover,
 	setIsRotating,
 }: RotationHandlerProps) => {

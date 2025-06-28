@@ -24,7 +24,7 @@ const DecalMesh = ({
 }: DecalMeshProps) => {
 	return (
 		<mesh
-			position={[position[0], position[1], position[2] + 0.02]}
+			position={[position[0], position[1], position[2]]}
 			rotation={new THREE.Euler(rotation[0],rotation[1], rotation[2])}
 			onPointerOver={onPointerOver}
 			onPointerOut={onPointerOut}

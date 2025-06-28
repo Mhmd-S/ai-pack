@@ -1,5 +1,4 @@
-// ... existing code ...
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useMemo } from "react";
 import { useSelect, Edges, useCursor } from "@react-three/drei";
 import { useControlsFaceMesh } from "@/components/edit/MultiLeva";
 import { button } from "leva";
@@ -43,10 +42,10 @@ const FaceMesh = ({ geometry, material }: FaceMeshProps) => {
   useCursor(hovered);
 
   // Calculate face details when the mesh is selected
-
-  const details = calculateFaceDetails(meshRef.current);
-  const angleZX = details?.angleZX;
-  console.log("Angle on ZX plane:", details?.angleZX);
+  const details = useMemo(
+    () => (meshRef.current ? calculateFaceDetails(meshRef.current) : null),
+    [meshRef.current]
+  );
 
   // Handle image drop
   const onImageDrop = useCallback((imageUrl: string) => {
@@ -74,7 +73,6 @@ const FaceMesh = ({ geometry, material }: FaceMeshProps) => {
         >
           <meshBasicMaterial
             transparent
-            side={2}
             color="#333"
             depthTest={false}
           />
@@ -84,11 +82,13 @@ const FaceMesh = ({ geometry, material }: FaceMeshProps) => {
           color={rgbToHex((materialProps as any)?.color || defaultColor)}
         />
 
+
         <TextDecal
           meshRef={meshRef}
           parentGeometry={geometry}
           text={"Hello"}
-          rotation={angleZX ?? 0}
+          rotation={details?.angleZX ?? 0}
+          center={details?.faceCenter ?? new THREE.Vector3(0,0,0)}
         />
 
         {meshRef.current &&
@@ -98,7 +98,7 @@ const FaceMesh = ({ geometry, material }: FaceMeshProps) => {
               url={image}
               parentGeometry={geometry}
               key={`${image}-${index}`} // More robust key
-              rotation={angleZX ?? 0}
+              rotation={details?.angleZX ?? 0}
             />
           ))}
       </mesh>

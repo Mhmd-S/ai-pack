@@ -16,6 +16,7 @@ interface TextDecalProps {
 	parentGeometry: THREE.BufferGeometry;
 	meshRef: React.RefObject<THREE.Mesh>;
 	rotation: number;
+	center: THREE.Vector3;
 }
 
 interface DecalProps {
@@ -24,7 +25,7 @@ interface DecalProps {
 	rotation: [number, number, number];
 }
 
-const TextDecal = ({ text, parentGeometry, meshRef, rotation }: TextDecalProps) => {
+const TextDecal = ({ text, parentGeometry, meshRef, rotation, center }: TextDecalProps) => {
 	const [hovered, setHover] = useState(false);
 	const [isResizing, setIsResizing] = useState(false);
 	const [isRotating, setIsRotating] = useState(false);
@@ -40,13 +41,13 @@ const TextDecal = ({ text, parentGeometry, meshRef, rotation }: TextDecalProps) 
 		new THREE.Box3().setFromBufferAttribute(
 			parentGeometry.attributes.position as THREE.BufferAttribute
 		);
-	const center = bounds.getCenter(new THREE.Vector3());
+	// const center = bounds.getCenter(new THREE.Vector3());
 
 	const [store, materialProps, set] = useControlsDecals(
 		selectedUserDataStores,
 		{
 			position: {
-				value: [center.x, center.y, center.z + 0.01],
+				value: [center.x, center.y, center.z],
 			},
 			scale: {
 				value: [0.2, 0.05],
@@ -65,9 +66,24 @@ const TextDecal = ({ text, parentGeometry, meshRef, rotation }: TextDecalProps) 
 	) as [Store, DecalProps, (updates: Partial<DecalProps>) => void];
 
 	useEffect(() => {
-		console.log('rotation', rotation);
+		const offset = 0.02;
+		let { x, y, z } = center;
+
+		const absX = Math.abs(x);
+		const absY = Math.abs(y);
+		const absZ = Math.abs(z);
+
+		if (absX > absY && absX > absZ) {
+			x += (Math.sign(x) * offset);
+		} else if (absY > absX && absY > absZ) {
+			y += (Math.sign(y) * offset);
+		} else {
+			z += (Math.sign(z) * offset);
+		}
+
 		set({ rotation: [0, rotation, 0] });
-	}, [rotation]);
+		set({ position: [x, y, z] });
+	}, [rotation, center, set]);
 
 	const isSelected = !!selectedUserDataStores.find((s) => s === store);
 	const currentScale = materialProps.scale || [1, 0.5];
@@ -180,7 +196,7 @@ const TextDecal = ({ text, parentGeometry, meshRef, rotation }: TextDecalProps) 
 					position={[
 						materialProps.position[0],
 						materialProps.position[1],
-						materialProps.position[2] + 0.05,
+						materialProps.position[2] + 0.01,
 					]}
 					rotation={materialProps.rotation}
 					scale={currentScale}

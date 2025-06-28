@@ -55,6 +55,20 @@ export const calculateFaceDetails = (mesh: THREE.Mesh) => {
 
 			const faceNormal = new THREE.Vector3().crossVectors(v1, v2).normalize();
 
+			const faceCenter = new THREE.Vector3()
+				.add(p0)
+				.add(p1)
+				.add(p2)
+				.add(p3)
+				.multiplyScalar(0.25);
+
+			// Ensure the normal points away from the origin. If the dot product of the
+			// normal and the vector to the face center is negative, the normal is
+			// pointing towards the origin, so we invert it.
+			if (faceNormal.dot(faceCenter) < 0) {
+				faceNormal.negate();
+			}
+
 			// Calculate angle on the ZX plane
 			const projectedNormal = new THREE.Vector3(
 				faceNormal.x,
@@ -66,13 +80,6 @@ export const calculateFaceDetails = (mesh: THREE.Mesh) => {
 			if (projectedNormal.lengthSq() > 0.001) {
 				angleZX = Math.atan2(projectedNormal.x, projectedNormal.z);
 			}
-
-			const faceCenter = new THREE.Vector3()
-				.add(p0)
-				.add(p1)
-				.add(p2)
-				.add(p3)
-				.multiplyScalar(0.25);
 
 			return { faceNormal, faceCenter, angleZX };
 		}
