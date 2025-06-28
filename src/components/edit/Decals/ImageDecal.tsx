@@ -13,15 +13,16 @@ interface ImageDecalProps {
 	url: string;
 	parentGeometry: THREE.BufferGeometry;
 	meshRef: React.RefObject<THREE.Mesh>;
+	rotation: number;
 }
 
 interface DecalProps {
 	position: [number, number, number];
 	scale: [number, number];
-	rotaion: number;
+	rotation: number;
 }
 
-const ImageDecal = ({ url, parentGeometry, meshRef }: ImageDecalProps) => {
+const ImageDecal = ({ url, parentGeometry, meshRef, rotation }: ImageDecalProps) => {
 	const [hovered, setHover] = useState(false);
 	const [isResizing, setIsResizing] = useState(false);
 	const [isRotating, setIsRotating] = useState(false);
@@ -173,7 +174,7 @@ const ImageDecal = ({ url, parentGeometry, meshRef }: ImageDecalProps) => {
 						materialProps.position[1],
 						materialProps.position[2],
 					]}
-					rotation={currentRotation}
+					rotation={[0, rotation, 0]}
 					scale={currentScale}
 					isSelected={isSelected}
 					isHovered={hovered}

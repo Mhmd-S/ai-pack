@@ -72,7 +72,7 @@ const OBJModelEdit: React.FC<OBJModelEditProps> = ({
 				</GizmoHelper>
 
 				<Grid
-					position={[0, -1, 0]} // Adjust position as needed
+					position={[0, 0, 0]} // Adjust position as needed
 					args={[500, 500]} // Grid size (width, height)
 					cellSize={2}
 					cellThickness={1}

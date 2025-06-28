@@ -4,6 +4,11 @@ import { SessionPayload } from '@/lib/definitions'
 import { cookies } from 'next/headers'
  
 const secretKey = process.env.AUTH_SECRET
+
+if (!secretKey) {
+  throw new Error('AUTH_SECRET environment variable is not set')
+}
+
 const encodedKey = new TextEncoder().encode(secretKey)
  
 export async function encrypt(payload: SessionPayload) {
@@ -15,6 +20,10 @@ export async function encrypt(payload: SessionPayload) {
 }
  
 export async function decrypt(session: string | undefined = '') {
+  if (!session || session.trim() === '') {
+    return null
+  }
+  
   try {
     const { payload } = await jwtVerify(session, encodedKey, {
       algorithms: ['HS256'],
@@ -22,6 +31,7 @@ export async function decrypt(session: string | undefined = '') {
     return payload
   } catch (error) {
     console.log('Failed to verify session', error)
+    return null
   }
 }
 

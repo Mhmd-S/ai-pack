@@ -1,145 +1,109 @@
 // ... existing code ...
-import { useState, useEffect, useRef } from 'react'; // Added useEffect, useRef
-import { useSelect, Edges, useCursor } from '@react-three/drei';
-import { useThree } from '@react-three/fiber'; // Added useThree
-import { useControlsFaceMesh } from '@/components/edit/MultiLeva';
-import { button } from 'leva';
-import * as THREE from 'three';
-import { rgbToHex } from '@/lib/utils';
-import ImageDecal from './Decals/ImageDecal';
-import TextDecal from './Decals/TextDecal';
+import { useState, useRef, useCallback } from "react";
+import { useSelect, Edges, useCursor } from "@react-three/drei";
+import { useControlsFaceMesh } from "@/components/edit/MultiLeva";
+import { button } from "leva";
+import * as THREE from "three";
+import { rgbToHex } from "@/lib/utils";
+import ImageDecal from "./Decals/ImageDecal";
+import TextDecal from "./Decals/TextDecal";
+import { calculateFaceDetails } from "@/lib/three/calculate-face-details";
+import { useImageDrop } from "@/hooks/use-image-drop";
 
 interface FaceMeshProps {
-	geometry: THREE.BufferGeometry;
-	material: THREE.Material;
+  geometry: THREE.BufferGeometry;
+  material: THREE.Material;
 }
 
 const FaceMesh = ({ geometry, material }: FaceMeshProps) => {
-	const meshRef = useRef<THREE.Mesh>(null!); // Ref for this specific mesh instance
+  const meshRef = useRef<THREE.Mesh>(null!); // Ref for this specific mesh instance
+  const edgesRef = useRef<THREE.Mesh>(null!); // Ref for the Edges
+  const [hovered, setHover] = useState(false);
+  const [images, setImages] = useState<string[]>([]);
 
-	const [hovered, setHover] = useState(false);
-	const [images, setImages] = useState<string[]>([]);
+  const selectedUserDataStores = useSelect().map((sel) => sel.userData.store); // Renamed for clarity
 
-	const selectedUserDataStores = useSelect().map((sel) => sel.userData.store); // Renamed for clarity
+  const defaultColor = { r: 255, g: 255, b: 255 };
 
-	// gl: WebGLRenderer, scene, camera, raycaster, pointer (normalized mouse coords) are from useThree
-	const { gl, camera, raycaster } = useThree();
+  // Assuming 'store' is unique per FaceMesh instance or a group it belongs to
+  const [store, materialProps] = useControlsFaceMesh(selectedUserDataStores, {
+    color: { value: defaultColor },
+    "Add Text": button((get) =>
+      alert(`Number value is ${get("number").toFixed(2)}`)
+    ),
+    "Add Shape": button((get) =>
+      alert(`Number value is ${get("number").toFixed(2)}`)
+    ),
+    "Add Image": button((get) =>
+      alert(`Number value is ${get("number").toFixed(2)}`)
+    ),
+  });
 
-	const defaultColor = { r: 255, g: 255, b: 255 };
+  const isSelected = !!selectedUserDataStores.find((s) => s === store);
+  useCursor(hovered);
 
-	// Assuming 'store' is unique per FaceMesh instance or a group it belongs to
-	const [store, materialProps] = useControlsFaceMesh(selectedUserDataStores, {
-		color: { value: defaultColor },
-		'Add Text': button((get) =>
-			alert(`Number value is ${get('number').toFixed(2)}`)
-		),
-		'Add Shape': button((get) =>
-			alert(`Number value is ${get('number').toFixed(2)}`)
-		),
-		'Add Image': button((get) =>
-			alert(`Number value is ${get('number').toFixed(2)}`)
-		),
-	});
+  // Calculate face details when the mesh is selected
 
-	const isSelected = !!selectedUserDataStores.find((s) => s === store);
-	useCursor(hovered);
+  const details = calculateFaceDetails(meshRef.current);
+  const angleZX = details?.angleZX;
+  console.log("Angle on ZX plane:", details?.angleZX);
 
+  // Handle image drop
+  const onImageDrop = useCallback((imageUrl: string) => {
+    setImages((prevImages) => [...prevImages, imageUrl]);
+  }, []);
 
-	// Logic for dropping images on a face
-	useEffect(() => {
-		const canvas = gl.domElement;
+  useImageDrop({ meshRef, onImageDrop });
 
-		const handleDragOver = (event: DragEvent) => {
-			event.preventDefault(); // Necessary to allow dropping
-		};
+  return (
+    <>
+      <mesh
+        ref={meshRef} // Assign the ref to the mesh
+        geometry={geometry}
+        onPointerOver={(e) => (e.stopPropagation(), setHover(true))}
+        onPointerOut={() => setHover(false)}
+        userData={{ store }}
+      >
+        <Edges
+          ref={edgesRef as any}
+          visible={isSelected}
+          lineWidth={5}
+          color="#ff6600"
+          scale={1}
+          renderOrder={1000}
+        >
+          <meshBasicMaterial
+            transparent
+            side={2}
+            color="#333"
+            depthTest={false}
+          />
+        </Edges>
 
-		const handleDrop = (event: DragEvent) => {
-			event.preventDefault();
-			event.stopPropagation();
+        <meshStandardMaterial
+          color={rgbToHex((materialProps as any)?.color || defaultColor)}
+        />
 
-			if (!meshRef.current) return;
+        <TextDecal
+          meshRef={meshRef}
+          parentGeometry={geometry}
+          text={"Hello"}
+          rotation={angleZX ?? 0}
+        />
 
-			// Calculate pointer position in normalized device coordinates (-1 to +1) for raycasting
-			const rect = canvas.getBoundingClientRect();
-			const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-			const y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-			const pointerVector = new THREE.Vector2(x, y);
-
-			raycaster.setFromCamera(pointerVector, camera);
-			const intersects = raycaster.intersectObject(
-				meshRef.current,
-				false
-			); // Raycast against this specific mesh
-
-			// Check if the first intersected object is our mesh
-			if (
-				intersects.length > 0 &&
-				intersects[0].object === meshRef.current
-			) {
-				const file = event.dataTransfer?.files[0];
-				if (file && file.type.startsWith('image/')) {
-					const reader = new FileReader();
-					reader.onload = (e) => {
-						if (e.target?.result) {
-							const newImageUrl = e.target.result as string;
-							setImages((prevImages) => [
-								...prevImages,
-								newImageUrl,
-							]);
-						}
-					};
-					reader.readAsDataURL(file);
-				}
-			}
-		};
-
-		canvas.addEventListener('dragover', handleDragOver);
-		canvas.addEventListener('drop', handleDrop);
-
-		// Cleanup function to remove event listeners
-		return () => {
-			canvas.removeEventListener('dragover', handleDragOver);
-			canvas.removeEventListener('drop', handleDrop);
-		};
-	}, [gl, camera, raycaster, meshRef, setImages, store]); // Dependencies for useEffect
-
-	return (
-		<mesh
-			ref={meshRef} // Assign the ref to the mesh
-			geometry={geometry}
-			onPointerOver={(e) => (e.stopPropagation(), setHover(true))}
-			onPointerOut={() => setHover(false)}
-			userData={{ store }}
-		>
-			<Edges
-				visible={isSelected}
-				lineWidth={5}
-				color="#ff6600"
-				scale={1}
-				renderOrder={1000}
-			>
-				<meshBasicMaterial transparent side={2} color="#333" depthTest={false} />
-			</Edges>
-
-			<meshStandardMaterial color={rgbToHex(materialProps?.color)}/>
-
-			<TextDecal
-				meshRef={meshRef}
-				parentGeometry={geometry}
-				text={'Hello'}
-			/>
-
-			{meshRef.current &&
-				images.map((image, index) => (
-					<ImageDecal
-						meshRef={meshRef}
-						url={image}
-						parentGeometry={geometry}
-						key={`${image}-${index}`} // More robust key
-					/>
-				))}
-		</mesh>
-	);
+        {meshRef.current &&
+          images.map((image, index) => (
+            <ImageDecal
+              meshRef={meshRef}
+              url={image}
+              parentGeometry={geometry}
+              key={`${image}-${index}`} // More robust key
+              rotation={angleZX ?? 0}
+            />
+          ))}
+      </mesh>
+    </>
+  );
 };
 
 export default FaceMesh;

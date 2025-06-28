@@ -52,8 +52,8 @@ export const register = async (state: FormState, formData: FormData) => {
 		console.log(e);
 	}
 
-	// Redirect to the dashboard
-	redirect('/dashboard');
+	// Redirect to the project page
+	redirect('/project');
 };
 
 export const login = async (state: FormState, formData: FormData) => {
@@ -98,8 +98,8 @@ export const login = async (state: FormState, formData: FormData) => {
 	} catch (e) {
 		console.log(e);
 	}
-	// Redirect to the dashboard
-	redirect('/dashboard');
+	// Redirect to the project page
+	redirect('/project');
 };
 
 export const logout = async () => {

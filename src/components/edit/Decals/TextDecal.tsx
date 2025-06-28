@@ -15,6 +15,7 @@ interface TextDecalProps {
 	text: string;
 	parentGeometry: THREE.BufferGeometry;
 	meshRef: React.RefObject<THREE.Mesh>;
+	rotation: number;
 }
 
 interface DecalProps {
@@ -23,7 +24,7 @@ interface DecalProps {
 	rotation: [number, number, number];
 }
 
-const TextDecal = ({ text, parentGeometry, meshRef }: TextDecalProps) => {
+const TextDecal = ({ text, parentGeometry, meshRef, rotation }: TextDecalProps) => {
 	const [hovered, setHover] = useState(false);
 	const [isResizing, setIsResizing] = useState(false);
 	const [isRotating, setIsRotating] = useState(false);
@@ -59,19 +60,20 @@ const TextDecal = ({ text, parentGeometry, meshRef }: TextDecalProps) => {
 			'font family': {
 				value: 'San Serif',
 			},
-			rotation: [0, 0, 0],
+			rotation: [0, rotation, 0],
 		}
 	) as [Store, DecalProps, (updates: Partial<DecalProps>) => void];
 
-const yRotation = Math.atan2(center.x, center.z);
-set({ rotation: [0, yRotation, 0] });
+	useEffect(() => {
+		console.log('rotation', rotation);
+		set({ rotation: [0, rotation, 0] });
+	}, [rotation]);
 
 	const isSelected = !!selectedUserDataStores.find((s) => s === store);
 	const currentScale = materialProps.scale || [1, 0.5];
-	const currentRotation = materialProps.rotation || [0, 0, 0];
 
 	const handleRotationUpdate = (newRotation: number) => {
-		set({ rotation: newRotation });
+		set({ rotation: [0, newRotation, 0] });
 	};
 
 	const handleUpdate = (newProps: {
@@ -180,7 +182,7 @@ set({ rotation: [0, yRotation, 0] });
 						materialProps.position[1],
 						materialProps.position[2] + 0.05,
 					]}
-					rotation={currentRotation}
+					rotation={materialProps.rotation}
 					scale={currentScale}
 					isSelected={isSelected}
 					isHovered={hovered}
@@ -198,7 +200,7 @@ set({ rotation: [0, yRotation, 0] });
 					materialProps.position[2],
 				]}
 				setIsEditing={setIsEditing}
-				rotation={currentRotation}
+				rotation={materialProps.rotation}
 				scale={[currentScale[0], currentScale[1], 1]}
 				initialText={text}
 				color={materialProps.color}
@@ -218,7 +220,7 @@ set({ rotation: [0, yRotation, 0] });
 							materialProps.position[2],
 						]}
 						scale={currentScale}
-						rotation={currentRotation}
+						rotation={materialProps.rotation}
 						onUpdate={handleUpdate}
 						onHover={setHover}
 						setIsResizing={setIsResizing}
@@ -231,7 +233,7 @@ set({ rotation: [0, yRotation, 0] });
 							materialProps.position[2],
 						]}
 						scale={currentScale}
-						rotation={currentRotation}
+						rotation={materialProps.rotation}
 						onUpdate={handleRotationUpdate}
 						onHover={setHover}
 						setIsRotating={setIsRotating}
