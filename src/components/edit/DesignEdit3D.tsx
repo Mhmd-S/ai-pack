@@ -98,6 +98,7 @@ const OBJModelEdit: React.FC<OBJModelEditProps> = ({
 										key={index}
 										geometry={child.geometry}
 										material={child.material}
+										text={index.toString()}
 									/>
 								);
 							}

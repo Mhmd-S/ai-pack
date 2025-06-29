@@ -12,9 +12,10 @@ import { useImageDrop } from "@/hooks/use-image-drop";
 interface FaceMeshProps {
   geometry: THREE.BufferGeometry;
   material: THREE.Material;
+  text: string;
 }
 
-const FaceMesh = ({ geometry, material }: FaceMeshProps) => {
+const FaceMesh = ({ geometry, material, text }: FaceMeshProps) => {
   const meshRef = useRef<THREE.Mesh>(null!); // Ref for this specific mesh instance
   const edgesRef = useRef<THREE.Mesh>(null!); // Ref for the Edges
   const [hovered, setHover] = useState(false);
@@ -86,10 +87,11 @@ const FaceMesh = ({ geometry, material }: FaceMeshProps) => {
         <TextDecal
           meshRef={meshRef}
           parentGeometry={geometry}
-          text={"Hello"}
-          rotation={details?.angleZX ?? 0}
+          text={text}
+          initialRotation={details?.rotation ?? [0,0,0]}
           center={details?.faceCenter ?? new THREE.Vector3(0,0,0)}
           boundingBox={details?.boundingBox ?? new THREE.Box3()}
+          normal={details?.faceNormal ?? new THREE.Vector3(0,0,0)}
         />
 
         {meshRef.current &&
@@ -99,7 +101,7 @@ const FaceMesh = ({ geometry, material }: FaceMeshProps) => {
               url={image}
               parentGeometry={geometry}
               key={`${image}-${index}`} // More robust key
-              rotation={details?.angleZX ?? 0}
+              initialRotation={details?.rotation ?? [0,0,0]}
             />
           ))}
       </mesh>

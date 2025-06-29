@@ -69,20 +69,27 @@ export const calculateFaceDetails = (mesh: THREE.Mesh) => {
 				faceNormal.negate();
 			}
 
-			// Calculate angle on the ZX plane
 			const projectedNormal = new THREE.Vector3(
 				faceNormal.x,
-				0,
+				faceNormal.y,
 				faceNormal.z
 			).normalize();
 
-			let angleZX = 0;
-			if (projectedNormal.lengthSq() > 0.001) {
-				angleZX = Math.atan2(projectedNormal.x, projectedNormal.z);
-			}
+			let rotation = [0, 0, 0];
+
+			// Calculate Euler angles from the normal vector
+			// Y-axis rotation (pitch) - rotation around X axis
+			rotation[0] = Math.atan2(projectedNormal.y, Math.sqrt(Math.pow(projectedNormal.x, 2) + Math.pow(projectedNormal.z, 2)));
+			
+			// X-axis rotation (yaw) - rotation around Y axis  
+			rotation[1] = Math.atan2(projectedNormal.x, projectedNormal.z);
+			
+			// Z-axis rotation (roll) - rotation around Z axis
+			rotation[2] = 0
+			
 			const faceBoundingBox = new THREE.Box3().setFromPoints(bestFacePoints);
 
-			return { faceNormal, faceCenter, angleZX, boundingBox: faceBoundingBox };
+			return { faceNormal, faceCenter, rotation, boundingBox: faceBoundingBox };
 		}
 	}
 

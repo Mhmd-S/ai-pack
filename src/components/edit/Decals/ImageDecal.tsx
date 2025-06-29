@@ -1,7 +1,7 @@
 import { Decal, useTexture, useSelect, useCursor } from '@react-three/drei';
 import { useDrag } from '@use-gesture/react';
 import { useThree } from '@react-three/fiber';
-import RotationHandler from '../Handler/RotationHandlert';
+import RotationHandler from '../Handler/RotationHandler';
 
 import * as THREE from 'three';
 import { useState, useRef } from 'react';

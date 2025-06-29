@@ -1,11 +1,11 @@
 import { useSelect, useCursor } from '@react-three/drei';
 import { useDrag } from '@use-gesture/react';
 import { useThree, ThreeEvent } from '@react-three/fiber';
-import RotationHandler from '../Handler/RotationHandlert';
+import RotationHandler from '../Handler/RotationHandler';
 
 import TextBox from '@/components/edit/Decals/TextBox';
 import * as THREE from 'three';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useControlsDecals } from '../MultiLeva';
 import HandlerGroup from '../Handler/HandlerGroup';
 import DecalMesh from './DecalMesh';
@@ -15,18 +15,20 @@ interface TextDecalProps {
 	text: string;
 	parentGeometry: THREE.BufferGeometry;
 	meshRef: React.RefObject<THREE.Mesh>;
-	rotation: number;
+	initialRotation: [number, number, number];
 	center: THREE.Vector3;
 	boundingBox: THREE.Box3;
+	normal: THREE.Vector3;
 }
 
 interface DecalProps {
 	position: [number, number, number];
 	scale: [number, number];
 	rotation: [number, number, number];
+	angle: number;
 }
 
-const TextDecal = ({ text, parentGeometry, meshRef, rotation, center, boundingBox }: TextDecalProps) => {
+const TextDecal = ({ text, parentGeometry, meshRef, initialRotation, center, boundingBox, normal }: TextDecalProps) => {
 	const [hovered, setHover] = useState(false);
 	const [isResizing, setIsResizing] = useState(false);
 	const [isRotating, setIsRotating] = useState(false);
@@ -55,9 +57,43 @@ const TextDecal = ({ text, parentGeometry, meshRef, rotation, center, boundingBo
 			'font family': {
 				value: 'San Serif',
 			},
-			rotation: [0, rotation, 0],
+			angle: { value: initialRotation[0] },
+			rotation: { value: initialRotation, render: () => false },
 		}
 	) as [Store, DecalProps, (updates: Partial<DecalProps>) => void];
+
+
+	// We will need to apply this to only the angles that changing not all of them, like we doing in the y axis
+	// Got to make sure that the rotation is applied to the correct axis, not to all of them.
+	useEffect(() => {
+		const baseQuat = new THREE.Quaternion().setFromEuler(baseRotation);
+		const inPlaneAxis = new THREE.Vector3(0, 0, 1);
+		const inPlaneQuat = new THREE.Quaternion().setFromAxisAngle(
+			inPlaneAxis,
+			materialProps.angle
+		);
+		const finalQuat = new THREE.Quaternion().multiplyQuaternions(
+			baseQuat,
+			inPlaneQuat
+		);
+		const finalEuler = new THREE.Euler().setFromQuaternion(finalQuat);
+
+		set({ rotation: [finalEuler.x, finalEuler.y, finalEuler.z] });
+	}, [materialProps.angle]);
+
+	useEffect(() => {
+		const size = new THREE.Vector3();
+		boundingBox.getSize(size);
+		const { x, y, z } = size;
+
+		if (z < x && z < y) {
+			setDominantPlane('z'); // XY plane
+		} else if (y < x && y < z) {
+			setDominantPlane('y'); // XZ plane
+		} else {
+			setDominantPlane('x'); // YZ plane
+		}
+	}, [boundingBox]);
 
 	useEffect(() => {
 		const offset = 0.02;
@@ -75,15 +111,15 @@ const TextDecal = ({ text, parentGeometry, meshRef, rotation, center, boundingBo
 			z += (Math.sign(z) * offset);
 		}
 
-		set({ rotation: [0, rotation, 0] });
+		set({ rotation: [initialRotation[0], initialRotation[1], initialRotation[2]] });
 		set({ position: [x, y, z] });
 	}, [center]);
 
 	const isSelected = !!selectedUserDataStores.find((s) => s === store);
 	const currentScale = materialProps.scale || [1, 0.5];
 
-	const handleRotationUpdate = (newRotation: number) => {
-		set({ rotation: [0, newRotation, 0] });
+	const handleRotationUpdate = (newAngle: number) => {
+		set({ angle: newAngle });
 	};
 
 	const handleUpdate = (newProps: {
@@ -201,7 +237,7 @@ const TextDecal = ({ text, parentGeometry, meshRef, rotation, center, boundingBo
 		},
 		{
 			// We need to use pointer events to get intersection data from R3F
-			eventOptions: { pointer: true } as any,
+			eventOptions: { pointer: true },
 		}
 	);
 
@@ -249,12 +285,12 @@ const TextDecal = ({ text, parentGeometry, meshRef, rotation, center, boundingBo
 			{isSelected && (
 				<>
 					<HandlerGroup
+						scale={currentScale}
 						position={[
 							materialProps.position[0],
 							materialProps.position[1],
 							materialProps.position[2],
 						]}
-						scale={currentScale}
 						rotation={materialProps.rotation}
 						onUpdate={handleUpdate}
 						onHover={setHover}
@@ -268,7 +304,9 @@ const TextDecal = ({ text, parentGeometry, meshRef, rotation, center, boundingBo
 							materialProps.position[2],
 						]}
 						scale={currentScale}
-						rotation={materialProps.rotation}
+						rotation={materialProps.angle}
+						dominantPlane={dominantPlane}
+						normal={normal}
 						onUpdate={handleRotationUpdate}
 						onHover={setHover}
 						setIsRotating={setIsRotating}

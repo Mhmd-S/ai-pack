@@ -2,6 +2,7 @@ import React, { useRef, useCallback } from 'react';
 import { useDrag } from '@use-gesture/react';
 import * as THREE from 'three';
 import { useThree } from '@react-three/fiber';
+import { Billboard } from '@react-three/drei';
 
 interface HandlerProps {
   position: THREE.Vector3;
@@ -89,17 +90,20 @@ const Handler = ({
   );
 
   return (
-    <mesh
+    <Billboard
       position={position}
-      scale={scale}
+      // @ts-ignore
+      {...bind()}
       onPointerOver={handlePointerOver}
       onPointerOut={handlePointerOut}
-      {...bind()}
-      quaternion={camera.quaternion}
     >
-      <planeGeometry args={[0.02, 0.02]} />
-      <meshBasicMaterial color="#ff6600" toneMapped={false} depthTest={false} transparent />
-    </mesh>
+      <mesh
+        scale={scale}
+      >
+        <planeGeometry args={[0.02, 0.02]} />
+        <meshBasicMaterial color="#ff6600" toneMapped={false} depthTest={false} transparent />
+      </mesh>
+    </Billboard>
   );
 };
 
