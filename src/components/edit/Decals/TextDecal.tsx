@@ -77,7 +77,7 @@ const TextDecal = ({ text, parentGeometry, meshRef, rotation, center, boundingBo
 
 		set({ rotation: [0, rotation, 0] });
 		set({ position: [x, y, z] });
-	}, [rotation, center, set]);
+	}, [center]);
 
 	const isSelected = !!selectedUserDataStores.find((s) => s === store);
 	const currentScale = materialProps.scale || [1, 0.5];
@@ -171,7 +171,7 @@ const TextDecal = ({ text, parentGeometry, meshRef, rotation, center, boundingBo
 					boundingBox.min.y + halfHeight,
 					Math.min(boundingBox.max.y - halfHeight, intersectionPoint.y)
 				);
-				newPosition = [clampedX, clampedY, center.z];
+				newPosition = [clampedX, clampedY, materialProps.position[2]];
 			} else if (size.y < size.x && size.y < size.z) {
 				// XZ plane is dominant (normal along Y)
 				const clampedX = Math.max(
@@ -182,18 +182,18 @@ const TextDecal = ({ text, parentGeometry, meshRef, rotation, center, boundingBo
 					boundingBox.min.z + halfHeight,
 					Math.min(boundingBox.max.z - halfHeight, intersectionPoint.z)
 				);
-				newPosition = [clampedX, center.y, clampedZ];
+				newPosition = [clampedX, materialProps.position[1], clampedZ];
 			} else {
 				// YZ plane is dominant (normal along X)
 				const clampedY = Math.max(
-					boundingBox.min.y + halfWidth,
-					Math.min(boundingBox.max.y - halfWidth, intersectionPoint.y)
+					boundingBox.min.y + currentScale[1],
+					Math.min(boundingBox.max.y - halfHeight, intersectionPoint.y)
 				);
 				const clampedZ = Math.max(
 					boundingBox.min.z + halfHeight,
 					Math.min(boundingBox.max.z - halfHeight, intersectionPoint.z)
 				);
-				newPosition = [center.x, clampedY, clampedZ];
+				newPosition = [materialProps.position[0], clampedY, clampedZ];
 			}
 
 			// Update state via Leva controls
