@@ -7,9 +7,9 @@ import { useState, useRef, useMemo } from 'react';
 interface RotationHandlerProps {
 	position: [number, number, number];
 	scale: [number, number];
-	rotation: number;
+	rotation: [number, number, number];
 	normal: THREE.Vector3;
-	onUpdate: (rotation: number) => void;
+	onUpdate: (rotation: [number, number, number]) => void;
 	onHover: (hovered: boolean) => void;
 	setIsRotating: (isRotating: boolean) => void;
 }
@@ -24,8 +24,10 @@ const RotationHandler = ({
 	setIsRotating,
 }: RotationHandlerProps) => {
 	const [isHovered, setHover] = useState(false);
+
 	useCursor(isHovered, 'grab');
-	const { camera, raycaster } = useThree();
+	
+	const { raycaster } = useThree();
 
 	const texture = useTexture('/icons/rotation-icon.svg');
 
@@ -47,7 +49,30 @@ const RotationHandler = ({
 	const handlerPosition = useMemo(() => {
 		const handleOffset = 0.15 + scale[1] / 2;
 		const offset = upVector.clone().multiplyScalar(handleOffset);
-		offset.applyAxisAngle(decalNormal, rotation);
+		console.log('upVector', upVector.toArray());
+		console.log('decalNormal', decalNormal.toArray());
+		console.log('rotation', rotation);
+		
+		// Apply the full 3D rotation to the upVector to see how it's been rotated
+		const euler = new THREE.Euler(rotation[0], rotation[1], rotation[2], 'XYZ');
+		const rotationMatrix = new THREE.Matrix4().makeRotationFromEuler(euler);
+		const rotatedUpVector = upVector.clone().applyMatrix4(rotationMatrix);
+		
+		// Project the rotated up vector onto the plane perpendicular to the normal
+		const projectedUp = rotatedUpVector.clone().projectOnPlane(decalNormal).normalize();
+		
+		// Calculate angle between original upVector and projected rotated upVector
+		let angle = upVector.angleTo(projectedUp);
+		
+		// Determine the sign of the angle using cross product
+		const cross = new THREE.Vector3().crossVectors(upVector, projectedUp);
+		if (decalNormal.dot(cross) < 0) {
+			angle = -angle;
+		}
+		
+		// Apply only the rotation around the normal axis
+		offset.applyAxisAngle(decalNormal, angle);
+		
 		return new THREE.Vector3(...position).add(offset);
 	}, [position, scale, rotation, decalNormal, upVector]);
 
@@ -86,7 +111,18 @@ const RotationHandler = ({
 				angle = -angle;
 			}
 
-			onUpdate(angle);
+			const newUp = upVector.clone().applyAxisAngle(decalNormal, angle);
+			const newRight = new THREE.Vector3().crossVectors(newUp, decalNormal);
+
+			const rotationMatrix = new THREE.Matrix4().makeBasis(
+				newRight,
+				newUp,
+				decalNormal
+			);
+
+			const euler = new THREE.Euler().setFromRotationMatrix(rotationMatrix, 'XYZ');
+
+			onUpdate([euler.x, euler.y, euler.z]);
 
 			if (last) {
 				setIsRotating(false);
@@ -98,35 +134,38 @@ const RotationHandler = ({
 	);
 
 	return (
-		<group {...bind()}>
-			<Billboard>
-				<Circle
-					args={[0.08, 32]} // Increased radius for easier grabbing
-					position={handlerPosition}
-					onPointerOver={(e) => {
-						e.stopPropagation();
-						onHover(true);
-						setHover(true);
-					}}
-					onPointerOut={() => {
-						onHover(false);
-						setHover(false);
-					}}>
-					<meshBasicMaterial
-						color={isHovered ? '#00aaff' : '#007bff'}
-						transparent
-						opacity={0.95}
-						depthTest={false} // Renders on top
-					/>
-					<Decal
-						position={[0, 0, 0.01]} // A slight Z offset to prevent z-fighting
-						rotation={0}
-						scale={0.1} // Scale the decal to fit within the circle
-						map={texture}
-					/>
-				</Circle>
-			</Billboard>
-		</group>
+		<Billboard {...bind()} position={handlerPosition}>
+			{/* Subtle background for better visibility */}
+			<Circle args={[0.05, 24]}>
+				<meshBasicMaterial
+					color="#000000"
+					transparent
+					opacity={isHovered ? 0.2 : 0.1}
+					depthTest={false}
+				/>
+			</Circle>
+			
+			{/* Main rotation handle */}
+			<Circle
+				args={[0.03, 22]}
+				onPointerOver={(e) => {
+					e.stopPropagation();
+					onHover(true);
+					setHover(true);
+				}}
+				onPointerOut={() => {
+					onHover(false);
+					setHover(false);
+				}}>
+				<meshBasicMaterial
+					color={isHovered ? '#00ff88' : '#ffffff'}
+					map={texture}
+					transparent
+					opacity={isHovered ? 1.0 : 0.85}
+					depthTest={false}
+				/>
+			</Circle>
+		</Billboard>
 	);
 };
 

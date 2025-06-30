@@ -13,7 +13,6 @@ import { Store } from 'leva';
 
 interface TextDecalProps {
 	text: string;
-	parentGeometry: THREE.BufferGeometry;
 	meshRef: React.RefObject<THREE.Mesh>;
 	initialRotation: [number, number, number];
 	center: THREE.Vector3;
@@ -25,10 +24,9 @@ interface DecalProps {
 	position: [number, number, number];
 	scale: [number, number];
 	rotation: [number, number, number];
-	angle: number;
 }
 
-const TextDecal = ({ text, parentGeometry, meshRef, initialRotation, center, boundingBox, normal }: TextDecalProps) => {
+const TextDecal = ({ text, meshRef, initialRotation, center, boundingBox, normal }: TextDecalProps) => {
 	const [hovered, setHover] = useState(false);
 	const [isResizing, setIsResizing] = useState(false);
 	const [isRotating, setIsRotating] = useState(false);
@@ -57,43 +55,9 @@ const TextDecal = ({ text, parentGeometry, meshRef, initialRotation, center, bou
 			'font family': {
 				value: 'San Serif',
 			},
-			angle: { value: initialRotation[0] },
 			rotation: { value: initialRotation, render: () => false },
 		}
 	) as [Store, DecalProps, (updates: Partial<DecalProps>) => void];
-
-
-	// We will need to apply this to only the angles that changing not all of them, like we doing in the y axis
-	// Got to make sure that the rotation is applied to the correct axis, not to all of them.
-	useEffect(() => {
-		const baseQuat = new THREE.Quaternion().setFromEuler(baseRotation);
-		const inPlaneAxis = new THREE.Vector3(0, 0, 1);
-		const inPlaneQuat = new THREE.Quaternion().setFromAxisAngle(
-			inPlaneAxis,
-			materialProps.angle
-		);
-		const finalQuat = new THREE.Quaternion().multiplyQuaternions(
-			baseQuat,
-			inPlaneQuat
-		);
-		const finalEuler = new THREE.Euler().setFromQuaternion(finalQuat);
-
-		set({ rotation: [finalEuler.x, finalEuler.y, finalEuler.z] });
-	}, [materialProps.angle]);
-
-	useEffect(() => {
-		const size = new THREE.Vector3();
-		boundingBox.getSize(size);
-		const { x, y, z } = size;
-
-		if (z < x && z < y) {
-			setDominantPlane('z'); // XY plane
-		} else if (y < x && y < z) {
-			setDominantPlane('y'); // XZ plane
-		} else {
-			setDominantPlane('x'); // YZ plane
-		}
-	}, [boundingBox]);
 
 	useEffect(() => {
 		const offset = 0.02;
@@ -118,8 +82,8 @@ const TextDecal = ({ text, parentGeometry, meshRef, initialRotation, center, bou
 	const isSelected = !!selectedUserDataStores.find((s) => s === store);
 	const currentScale = materialProps.scale || [1, 0.5];
 
-	const handleRotationUpdate = (newAngle: number) => {
-		set({ angle: newAngle });
+	const handleRotationUpdate = (newRotation: [number, number, number]) => {
+		set({ rotation: newRotation });
 	};
 
 	const handleUpdate = (newProps: {
@@ -247,7 +211,6 @@ const TextDecal = ({ text, parentGeometry, meshRef, initialRotation, center, bou
 			{/* A interactable interface for the user, the decal itself is too rigid to control directly */}
 			<group {...bind()}>
 				<DecalMesh
-					meshRef={meshRef}
 					position={[
 						materialProps.position[0],
 						materialProps.position[1],
@@ -304,8 +267,7 @@ const TextDecal = ({ text, parentGeometry, meshRef, initialRotation, center, bou
 							materialProps.position[2],
 						]}
 						scale={currentScale}
-						rotation={materialProps.angle}
-						dominantPlane={dominantPlane}
+						rotation={materialProps.rotation}
 						normal={normal}
 						onUpdate={handleRotationUpdate}
 						onHover={setHover}

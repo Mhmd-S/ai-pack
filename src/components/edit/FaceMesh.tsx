@@ -86,7 +86,6 @@ const FaceMesh = ({ geometry, material, text }: FaceMeshProps) => {
 
         <TextDecal
           meshRef={meshRef}
-          parentGeometry={geometry}
           text={text}
           initialRotation={details?.rotation ?? [0,0,0]}
           center={details?.faceCenter ?? new THREE.Vector3(0,0,0)}
