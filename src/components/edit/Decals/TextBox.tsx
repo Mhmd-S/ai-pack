@@ -7,7 +7,7 @@ interface EditableTextProps {
 	meshRef: React.RefObject<THREE.Mesh>;
 	position: ThreeElements['mesh']['position'];
 	rotation: [number, number, number];
-	scale: number;
+	scale: [number, number, number];
 	initialText?: string;
 	color: string;
 	size: number;

@@ -72,35 +72,33 @@ const FaceMesh = ({ geometry, material, text }: FaceMeshProps) => {
           scale={1}
           renderOrder={1000}
         >
-          <meshBasicMaterial
-            transparent
-            color="#333"
-            depthTest={false}
-          />
+          <meshBasicMaterial transparent color="#333" depthTest={false} />
         </Edges>
 
         <meshStandardMaterial
+          side={THREE.DoubleSide}
           color={rgbToHex((materialProps as any)?.color || defaultColor)}
         />
-
 
         <TextDecal
           meshRef={meshRef}
           text={text}
-          initialRotation={details?.rotation ?? [0,0,0]}
-          center={details?.faceCenter ?? new THREE.Vector3(0,0,0)}
+          initialRotation={details?.rotation ?? [0, 0, 0]}
+          center={details?.faceCenter ?? new THREE.Vector3(0, 0, 0)}
           boundingBox={details?.boundingBox ?? new THREE.Box3()}
-          normal={details?.faceNormal ?? new THREE.Vector3(0,0,0)}
+          normal={details?.faceNormal ?? new THREE.Vector3(0, 0, 0)}
         />
 
         {meshRef.current &&
           images.map((image, index) => (
             <ImageDecal
               meshRef={meshRef}
+              key={`${image}-${index}`}
               url={image}
-              parentGeometry={geometry}
-              key={`${image}-${index}`} // More robust key
-              initialRotation={details?.rotation ?? [0,0,0]}
+              initialRotation={details?.rotation ?? [0, 0, 0]}
+              center={details?.faceCenter ?? new THREE.Vector3(0, 0, 0)}
+              boundingBox={details?.boundingBox ?? new THREE.Box3()}
+              normal={details?.faceNormal ?? new THREE.Vector3(0, 0, 0)}
             />
           ))}
       </mesh>

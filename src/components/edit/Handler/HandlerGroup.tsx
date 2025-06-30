@@ -13,6 +13,7 @@ interface HandlerGroupProps {
   position: [number, number, number];
   scale: [number, number];
   rotation: [number, number, number];
+  normal: THREE.Vector3;
   onUpdate: (newProps: {
     scale: [number, number];
     position: [number, number, number];
@@ -80,6 +81,7 @@ const HandlerGroup = ({
   position,
   scale,
   rotation,
+  normal,
   onUpdate,
   onHover,
   setIsResizing,
@@ -123,7 +125,9 @@ const HandlerGroup = ({
     );
 
     // CHANGED: Get the world rotation and invert it to transform movement into local space
-    const rotationMatrix = new THREE.Matrix4().makeRotationZ(rotation[2]);
+    const rotationMatrix = new THREE.Matrix4().makeRotationFromEuler(
+      new THREE.Euler(rotation[0], rotation[1], rotation[2])
+    );
     dragInfo.inverseRotationMatrix.copy(rotationMatrix).invert();
   };
 
@@ -194,13 +198,19 @@ const HandlerGroup = ({
     }
 
     // CHANGED: Rotate the local center offset back into world space and add to initial position
-    const worldCenterOffset = centerOffset.applyMatrix4(
-      new THREE.Matrix4().makeRotationZ(rotation[2])
+    const rotationMatrix = new THREE.Matrix4().makeRotationFromEuler(
+      new THREE.Euler(rotation[0], rotation[1], rotation[2])
     );
+    const worldCenterOffset = centerOffset.applyMatrix4(rotationMatrix);
+
+    const newPositionVec = new THREE.Vector3(...initialPosition).add(
+      worldCenterOffset
+    );
+
     const newPosition: [number, number, number] = [
-      initialPosition.x + worldCenterOffset.x,
-      initialPosition.y + worldCenterOffset.y,
-      initialPosition.z,
+      newPositionVec.x,
+      newPositionVec.y,
+      newPositionVec.z,
     ];
 
     onUpdate({
@@ -213,8 +223,6 @@ const HandlerGroup = ({
     setIsResizing(false);
   };
 
-  // CHANGED: The main group now controls position and rotation.
-  // The strange division by 12 is kept from your original code.
   return (
     <group
       position={[position[0], position[1], position[2]]}

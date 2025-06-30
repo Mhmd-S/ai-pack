@@ -1,4 +1,4 @@
-import React, { useRef, useCallback } from 'react';
+import React, { useRef, useCallback, useState, useEffect } from 'react';
 import { useDrag } from '@use-gesture/react';
 import * as THREE from 'three';
 import { useThree } from '@react-three/fiber';
@@ -10,8 +10,6 @@ interface HandlerProps {
   scale: [number, number, number];
   onDragStart: () => void;
   rotation: [number, number, number];
-  // The key change from my flawed attempt: onDrag does NOT pass the handler config.
-  // It only passes the raw movement data.
   onDrag: (movement: THREE.Vector2) => void;
   onDragEnd: () => void;
   onHover: (hovered: boolean) => void;
@@ -33,8 +31,8 @@ const Handler = ({
   onHover,
 }: HandlerProps) => {
   const { camera, raycaster, size } = useThree();
-
-  console.log('rotation', rotation);
+  const [relativeQ, setRelativeQ] = useState<THREE.Quaternion>(new THREE.Quaternion());
+  const [currentRotation, setCurrentRotation] = useState<THREE.Euler>(new THREE.Euler());
 
   const dragState = useRef({
     plane: new THREE.Plane(),
@@ -53,6 +51,30 @@ const Handler = ({
     }
     onHover(false);
   }, [onHover, cursor]);
+
+  const relativeQuaternion = (rotation: [number, number, number]) => {
+    const parentQuaternion = new THREE.Quaternion();
+    parentQuaternion.setFromEuler(new THREE.Euler(rotation[0], rotation[1], rotation[2]));
+
+    const childQuaternion = new THREE.Quaternion();
+    childQuaternion.setFromEuler(new THREE.Euler(0,0,0));
+
+    const relativeQ = parentQuaternion.clone().premultiply(childQuaternion);
+  
+    return relativeQ;
+  }
+
+  useEffect(() => {
+    setRelativeQ(relativeQuaternion(rotation));
+  }, []);
+
+  useEffect(() => {
+    const currentQ = new THREE.Quaternion();
+    currentQ.setFromEuler(new THREE.Euler(rotation[0], rotation[1], rotation[2]));
+
+    const childQ = currentQ.clone().premultiply(relativeQ);
+    setCurrentRotation(new THREE.Euler().setFromQuaternion(childQ));
+  }, [rotation]);
 
   const bind = useDrag(
     (state) => {
@@ -96,14 +118,13 @@ const Handler = ({
   return (
     <Billboard
       position={position}
-      
       {...bind()}
       onPointerOver={handlePointerOver}
       onPointerOut={handlePointerOut}
     >
       <mesh
-        rotation={new THREE.Euler(rotation[0], rotation[1], rotation[2])}
         scale={scale}
+        rotation={currentRotation}
       >
         <planeGeometry args={[0.02, 0.02]} />
         <meshBasicMaterial color="#ff6600" toneMapped={false} depthTest={false} transparent />

@@ -4,7 +4,7 @@ import { useThree } from '@react-three/fiber';
 import RotationHandler from '../Handler/RotationHandler';
 
 import * as THREE from 'three';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useControlsDecals } from '../MultiLeva';
 import HandlerGroup from '../Handler/HandlerGroup';
 import DecalMesh from './DecalMesh';
@@ -13,16 +13,19 @@ interface ImageDecalProps {
 	url: string;
 	parentGeometry: THREE.BufferGeometry;
 	meshRef: React.RefObject<THREE.Mesh>;
-	rotation: number;
+	initialRotation: [number, number, number];
+	normal: THREE.Vector3;
+	center: THREE.Vector3;
+	boundingBox: THREE.Box3;
 }
 
 interface DecalProps {
 	position: [number, number, number];
 	scale: [number, number];
-	rotation: number;
+	rotation: [number, number, number];
 }
 
-const ImageDecal = ({ url, parentGeometry, meshRef, rotation }: ImageDecalProps) => {
+const ImageDecal = ({ url, meshRef, initialRotation, center, boundingBox, normal }: ImageDecalProps) => {
 	const [hovered, setHover] = useState(false);
 	const [isResizing, setIsResizing] = useState(false);
 	const [isRotating, setIsRotating] = useState(false);
@@ -39,33 +42,46 @@ const ImageDecal = ({ url, parentGeometry, meshRef, rotation }: ImageDecalProps)
 
 	const selectedUserDataStores = useSelect().map((sel) => sel.userData.store);
 
-	const bounds =
-		parentGeometry.boundingBox ||
-		new THREE.Box3().setFromBufferAttribute(
-			parentGeometry.attributes.position as THREE.BufferAttribute
-		);
-	const center = bounds.getCenter(new THREE.Vector3());
-
 	const [store, materialProps, set] = useControlsDecals(
 		selectedUserDataStores,
 		{
 			position: {
-				value: [center.x, center.y, center.z + 0.01],
+				value: [center.x, center.y, center.z],
 			},
 			scale: {
 				value: [standardWidth, standardHeight],
 			},
-			rotation: { value: 0 },
+			rotation: { value: initialRotation, render: () => false },
 		}
 	) as [any, DecalProps, (props: Partial<DecalProps>) => void];
 
 	useCursor(hovered);
 
+	useEffect(() => {
+		const offset = 0.02;
+		let { x, y, z } = center;
+
+		const absX = Math.abs(x);
+		const absY = Math.abs(y);
+		const absZ = Math.abs(z);
+
+		if (absX > absY && absX > absZ) {
+			x += (Math.sign(x) * offset);
+		} else if (absY > absX && absY > absZ) {
+			y += (Math.sign(y) * offset);
+		} else {
+			z += (Math.sign(z) * offset);
+		}
+
+		set({ rotation: [initialRotation[0], initialRotation[1], initialRotation[2]] });
+		set({ position: [x, y, z] });
+	}, [center]);
+
+
 	const isSelected = !!selectedUserDataStores.find((s) => s === store);
 	const currentScale = materialProps.scale || [1, 1];
-	const currentRotation = materialProps.rotation || 0;
 
-	const handleRotationUpdate = (newRotation: number) => {
+	const handleRotationUpdate = (newRotation: [number, number, number]) => {
 		set({ rotation: newRotation });
 	};
 
@@ -87,11 +103,11 @@ const ImageDecal = ({ url, parentGeometry, meshRef, rotation }: ImageDecalProps)
 	const dragOffset = useRef(new THREE.Vector3());
 
 	const bind = useDrag(
-		({ event, down, first, last }) => {
+		({ event, down, first }) => {
 			if (!isSelected || isResizing || isRotating) return;
 
 			// We are working with a non-HTML element, so we need to access the original event
-			const e = event as unknown as PointerEvent;
+			const e = event as unknown as ThreeEvent<PointerEvent>;
 
 			// Only proceed if actively dragging (mouse/pointer is down)
 			if (!down) return;
@@ -100,7 +116,7 @@ const ImageDecal = ({ url, parentGeometry, meshRef, rotation }: ImageDecalProps)
 				// On first drag event, calculate the drag plane
 
 				// 1. Find intersection point on the DecalMesh
-				const intersection = (e as any).intersections[0];
+				const intersection = e.intersections[0];
 				if (!intersection) return; // Should not happen if drag starts on the object
 				dragStartPoint.current.copy(intersection.point);
 
@@ -138,43 +154,67 @@ const ImageDecal = ({ url, parentGeometry, meshRef, rotation }: ImageDecalProps)
 
 			// Clamp the position to stay within parent geometry bounds
 			// considering the decal's dimensions
-			const clampedX = Math.max(
-				bounds.min.x + halfWidth,
-				Math.min(bounds.max.x - halfWidth, intersectionPoint.x)
-			);
-			const clampedY = Math.max(
-				bounds.min.y + halfHeight,
-				Math.min(bounds.max.y - halfHeight, intersectionPoint.y)
-			);
+			const size = new THREE.Vector3();
+			boundingBox.getSize(size);
 
-			// The intersection point is the new position (clamped to bounds)
-			const newPosition: [number, number, number] = [
-				clampedX,
-				clampedY,
-				center.z,
-			];
+			let newPosition: [number, number, number];
+
+			// The smallest dimension of the bounding box tells us the plane's normal direction.
+			if (size.z < size.x && size.z < size.y) {
+				// XY plane is dominant (normal along Z)
+				const clampedX = Math.max(
+					boundingBox.min.x + halfWidth,
+					Math.min(boundingBox.max.x - halfWidth, intersectionPoint.x)
+				);
+				const clampedY = Math.max(
+					boundingBox.min.y + halfHeight,
+					Math.min(boundingBox.max.y - halfHeight, intersectionPoint.y)
+				);
+				newPosition = [clampedX, clampedY, materialProps.position[2]];
+			} else if (size.y < size.x && size.y < size.z) {
+				// XZ plane is dominant (normal along Y)
+				const clampedX = Math.max(
+					boundingBox.min.x + halfWidth,
+					Math.min(boundingBox.max.x - halfWidth, intersectionPoint.x)
+				);
+				const clampedZ = Math.max(
+					boundingBox.min.z + halfHeight,
+					Math.min(boundingBox.max.z - halfHeight, intersectionPoint.z)
+				);
+				newPosition = [clampedX, materialProps.position[1], clampedZ];
+			} else {
+				// YZ plane is dominant (normal along X)
+				const clampedY = Math.max(
+					boundingBox.min.y + halfHeight,
+					Math.min(boundingBox.max.y - halfHeight, intersectionPoint.y)
+				);
+				const clampedZ = Math.max(
+					boundingBox.min.z + halfHeight,
+					Math.min(boundingBox.max.z - halfHeight, intersectionPoint.z)
+				);
+				newPosition = [materialProps.position[0], clampedY, clampedZ];
+			}
 
 			// Update state via Leva controls
 			set({ position: newPosition });
 		},
 		{
 			// We need to use pointer events to get intersection data from R3F
-			eventOptions: { pointer: true } as any,
+			eventOptions: { pointer: true },
 		}
 	);
-
 	return (
 		<>
 			{/* Visual representation mesh */}
 			{/* A interactable interface for the user, the decal itself is too rigid to control directly */}
 			<group {...bind()}>
-				<DecalMesh
+			<DecalMesh
 					position={[
 						materialProps.position[0],
 						materialProps.position[1],
 						materialProps.position[2],
 					]}
-					rotation={[0, rotation, 0]}
+					rotation={materialProps.rotation}
 					scale={currentScale}
 					isSelected={isSelected}
 					isHovered={hovered}
@@ -193,42 +233,47 @@ const ImageDecal = ({ url, parentGeometry, meshRef, rotation }: ImageDecalProps)
 					materialProps.position[2],
 				]}
 				scale={[currentScale[0], currentScale[1], currentScale[0]]}
-				map={texture}
-				rotation={new THREE.Euler(0, 0, currentRotation)}
-				// A slightly higher offset can prevent z-fighting during drag
-				polygonOffsetFactor={-0.001}
-			/>
+				rotation={new THREE.Euler(materialProps.rotation[0], materialProps.rotation[1], materialProps.rotation[2])}
+			>
+				<meshBasicMaterial
+					map={texture}
+					polygonOffset
+					polygonOffsetFactor={-2} // Prevents z-fighting
+					transparent
+				/>
+			</Decal>
 
 			{/* Add rotation handler */}
 
 			{/* Handler group for resize handles */}
 			{isSelected && (
 				<>
-					<HandlerGroup
-						position={[
-							materialProps.position[0],
-							materialProps.position[1],
-							materialProps.position[2],
-						]}
-						scale={currentScale}
-						rotation={currentRotation}
-						onUpdate={handleUpdate}
-						onHover={setHover}
-						setIsResizing={setIsResizing}
-					/>
-					<RotationHandler
-						position={[
-							materialProps.position[0],
-							materialProps.position[1],
-							materialProps.position[2],
-						]}
-						scale={currentScale}
-						rotation={currentRotation}
-						onUpdate={handleRotationUpdate}
-						onHover={setHover}
-						setIsRotating={setIsRotating}
-					/>
-				</>
+				<HandlerGroup
+					scale={currentScale}
+					position={[
+						materialProps.position[0],
+						materialProps.position[1],
+						materialProps.position[2],
+					]}
+					rotation={materialProps.rotation}
+					onUpdate={handleUpdate}
+					onHover={setHover}
+					setIsResizing={setIsResizing}
+				/>
+				<RotationHandler
+					position={[
+						materialProps.position[0],
+						materialProps.position[1],
+						materialProps.position[2],
+					]}
+					scale={currentScale}
+					rotation={materialProps.rotation}
+					normal={normal}
+					onUpdate={handleRotationUpdate}
+					onHover={setHover}
+					setIsRotating={setIsRotating}
+				/>
+			</>
 			)}
 		</>
 	);

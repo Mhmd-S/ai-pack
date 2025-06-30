@@ -13,7 +13,6 @@ import { Store } from 'leva';
 
 interface TextDecalProps {
 	text: string;
-	meshRef: React.RefObject<THREE.Mesh>;
 	initialRotation: [number, number, number];
 	center: THREE.Vector3;
 	boundingBox: THREE.Box3;
@@ -24,9 +23,12 @@ interface DecalProps {
 	position: [number, number, number];
 	scale: [number, number];
 	rotation: [number, number, number];
+	size: number;
+	color: string;
+	'font family': string;
 }
 
-const TextDecal = ({ text, meshRef, initialRotation, center, boundingBox, normal }: TextDecalProps) => {
+const TextDecal = ({ text, initialRotation, center, boundingBox, normal }: TextDecalProps) => {
 	const [hovered, setHover] = useState(false);
 	const [isResizing, setIsResizing] = useState(false);
 	const [isRotating, setIsRotating] = useState(false);
@@ -201,7 +203,7 @@ const TextDecal = ({ text, meshRef, initialRotation, center, boundingBox, normal
 		},
 		{
 			// We need to use pointer events to get intersection data from R3F
-			eventOptions: { pointer: true },
+			eventOptions: { pointer: true } as any,
 		}
 	);
 
@@ -238,7 +240,7 @@ const TextDecal = ({ text, meshRef, initialRotation, center, boundingBox, normal
 				scale={[currentScale[0], currentScale[1], 1]}
 				initialText={text}
 				color={materialProps.color}
-				size={materialProps.fontSize}
+				size={materialProps.size}
 				// fontFamily={materialProps['font family']}
 				isSelected={isSelected}
 				isEditing={isEditing}
@@ -258,7 +260,7 @@ const TextDecal = ({ text, meshRef, initialRotation, center, boundingBox, normal
 						onUpdate={handleUpdate}
 						onHover={setHover}
 						setIsResizing={setIsResizing}
-						isText
+						normal={normal}
 					/>
 					<RotationHandler
 						position={[
