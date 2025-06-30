@@ -19,7 +19,6 @@ interface HandlerGroupProps {
   }) => void;
   onHover: (hovered: boolean) => void;
   setIsResizing: (isResizing: boolean) => void;
-  isText?: boolean;
 }
 
 const handlers: HandlerConfig[] = [
@@ -84,14 +83,12 @@ const HandlerGroup = ({
   onUpdate,
   onHover,
   setIsResizing,
-  isText,
 }: HandlerGroupProps) => {
   const dragInfo = useRef({
     pivotPoint: new THREE.Vector3(),
     initialPosition: new THREE.Vector3(),
     initialScale: new THREE.Vector2(),
     initialHandlePosition: new THREE.Vector3(),
-    // CHANGED: Store the inverse rotation matrix on drag start
     inverseRotationMatrix: new THREE.Matrix4(),
   }).current;
 
@@ -224,7 +221,7 @@ const HandlerGroup = ({
       rotation={new THREE.Euler(rotation[0], rotation[1], rotation[2])}
     >
       {handlers.map((handler) => {
-        if (isText && (handler.id === "top" || handler.id === "bottom")) return;
+        if ((handler.id === "top" || handler.id === "bottom")) return;
         // Determine visual scale for edge handlers to make them look like bars
         const visualScale: [number, number, number] = [1, 1, 1];
         if (handler.type === "edge-x") visualScale[1] = 2.5;
@@ -233,10 +230,9 @@ const HandlerGroup = ({
         return (
           <Handler
             key={handler.id}
-            // CHANGED: Position handlers in LOCAL space relative to the group's center.
             position={getPointInLocalSpace(handler.normalizedPosition, scale)}
             cursor={handler.cursor}
-            // Note: The handler's own scale is for its visual appearance and is separate
+            rotation={rotation}
             scale={visualScale}
             onHover={onHover}
             onDragStart={() => handleDragStart(handler)}

@@ -9,6 +9,7 @@ interface HandlerProps {
   cursor: string;
   scale: [number, number, number];
   onDragStart: () => void;
+  rotation: [number, number, number];
   // The key change from my flawed attempt: onDrag does NOT pass the handler config.
   // It only passes the raw movement data.
   onDrag: (movement: THREE.Vector2) => void;
@@ -25,12 +26,15 @@ const Handler = ({
   position,
   cursor,
   scale,
+  rotation,
   onDragStart,
   onDrag,
   onDragEnd,
   onHover,
 }: HandlerProps) => {
   const { camera, raycaster, size } = useThree();
+
+  console.log('rotation', rotation);
 
   const dragState = useRef({
     plane: new THREE.Plane(),
@@ -92,12 +96,13 @@ const Handler = ({
   return (
     <Billboard
       position={position}
-      // @ts-ignore
+      
       {...bind()}
       onPointerOver={handlePointerOver}
       onPointerOut={handlePointerOut}
     >
       <mesh
+        rotation={new THREE.Euler(rotation[0], rotation[1], rotation[2])}
         scale={scale}
       >
         <planeGeometry args={[0.02, 0.02]} />

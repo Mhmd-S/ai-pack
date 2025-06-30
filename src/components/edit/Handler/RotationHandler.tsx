@@ -49,9 +49,6 @@ const RotationHandler = ({
 	const handlerPosition = useMemo(() => {
 		const handleOffset = 0.15 + scale[1] / 2;
 		const offset = upVector.clone().multiplyScalar(handleOffset);
-		console.log('upVector', upVector.toArray());
-		console.log('decalNormal', decalNormal.toArray());
-		console.log('rotation', rotation);
 		
 		// Apply the full 3D rotation to the upVector to see how it's been rotated
 		const euler = new THREE.Euler(rotation[0], rotation[1], rotation[2], 'XYZ');
