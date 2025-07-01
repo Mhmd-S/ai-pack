@@ -94,6 +94,7 @@ const HandlerGroup = ({
     inverseRotationMatrix: new THREE.Matrix4(),
   }).current;
 
+  console.log("position", position);
   // This function is now for LOCAL space calculation
   const getPointInLocalSpace = (
     normalizedPos: [number, number],
@@ -225,7 +226,7 @@ const HandlerGroup = ({
 
   return (
     <group
-      position={[position[0], position[1], position[2]]}
+      position={new THREE.Vector3(position[0], position[1], position[2])}
       rotation={new THREE.Euler(rotation[0], rotation[1], rotation[2])}
     >
       {handlers.map((handler) => {

@@ -2,7 +2,7 @@ import React, { useRef, useCallback, useState, useEffect } from 'react';
 import { useDrag } from '@use-gesture/react';
 import * as THREE from 'three';
 import { useThree } from '@react-three/fiber';
-import { Billboard } from '@react-three/drei';
+import { Billboard, Circle, useCursor } from '@react-three/drei';
 
 interface HandlerProps {
   position: THREE.Vector3;
@@ -31,8 +31,10 @@ const Handler = ({
   onHover,
 }: HandlerProps) => {
   const { camera, raycaster, size } = useThree();
-  const [relativeQ, setRelativeQ] = useState<THREE.Quaternion>(new THREE.Quaternion());
-  const [currentRotation, setCurrentRotation] = useState<THREE.Euler>(new THREE.Euler());
+  // const [relativeQ, setRelativeQ] = useState<THREE.Quaternion>(new THREE.Quaternion());
+  // const [currentRotation, setCurrentRotation] = useState<THREE.Euler>(new THREE.Euler());
+
+  useCursor(true, cursor);
 
   const dragState = useRef({
     plane: new THREE.Plane(),
@@ -64,17 +66,23 @@ const Handler = ({
     return relativeQ;
   }
 
-  useEffect(() => {
-    setRelativeQ(relativeQuaternion(rotation));
-  }, []);
+  // useEffect(() => {
+  //   setRelativeQ(relativeQuaternion(rotation));
 
-  useEffect(() => {
-    const currentQ = new THREE.Quaternion();
-    currentQ.setFromEuler(new THREE.Euler(rotation[0], rotation[1], rotation[2]));
+  //   const currentQ = new THREE.Quaternion();
+  //   currentQ.setFromEuler(new THREE.Euler(rotation[0], rotation[1], rotation[2]));
 
-    const childQ = currentQ.clone().premultiply(relativeQ);
-    setCurrentRotation(new THREE.Euler().setFromQuaternion(childQ));
-  }, [rotation]);
+  //   const childQ = currentQ.clone().premultiply(relativeQ);
+  //   setCurrentRotation(new THREE.Euler().setFromQuaternion(childQ));
+  // }, []);
+
+  // useEffect(() => {
+  //   const currentQ = new THREE.Quaternion();
+  //   currentQ.setFromEuler(new THREE.Euler(rotation[0], rotation[1], rotation[2]));
+
+  //   const childQ = currentQ.clone().premultiply(relativeQ);
+  //   setCurrentRotation(new THREE.Euler().setFromQuaternion(childQ));
+  // }, [rotation]);
 
   const bind = useDrag(
     (state) => {
@@ -122,13 +130,13 @@ const Handler = ({
       onPointerOver={handlePointerOver}
       onPointerOut={handlePointerOut}
     >
-      <mesh
-        scale={scale}
-        rotation={currentRotation}
-      >
-        <planeGeometry args={[0.02, 0.02]} />
-        <meshBasicMaterial color="#ff6600" toneMapped={false} depthTest={false} transparent />
-      </mesh>
+			<Circle args={[0.02, 24]}>
+				<meshBasicMaterial
+					color="#000000"
+					transparent
+					depthTest={false}
+				/>
+			</Circle>
     </Billboard>
   );
 };
