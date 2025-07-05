@@ -15,11 +15,12 @@ interface FaceMeshProps {
   text: string;
 }
 
-const FaceMesh = ({ geometry, material, text }: FaceMeshProps) => {
+const FaceMesh = ({ geometry }: FaceMeshProps) => {
   const meshRef = useRef<THREE.Mesh>(null!); // Ref for this specific mesh instance
   const edgesRef = useRef<THREE.Mesh>(null!); // Ref for the Edges
   const [hovered, setHover] = useState(false);
-  const [images, setImages] = useState<string[]>([]);
+  const [images, setImages] = useState<Record<string, string>>({});
+  const [texts, setTexts] = useState<Record<string, string>>({});
 
   const selectedUserDataStores = useSelect().map((sel) => sel.userData.store); // Renamed for clarity
 
@@ -28,15 +29,8 @@ const FaceMesh = ({ geometry, material, text }: FaceMeshProps) => {
   // Assuming 'store' is unique per FaceMesh instance or a group it belongs to
   const [store, materialProps] = useControlsFaceMesh(selectedUserDataStores, {
     color: { value: defaultColor },
-    "Add Text": button((get) =>
-      alert(`Number value is ${get("number").toFixed(2)}`)
-    ),
-    "Add Shape": button((get) =>
-      alert(`Number value is ${get("number").toFixed(2)}`)
-    ),
-    "Add Image": button((get) =>
-      alert(`Number value is ${get("number").toFixed(2)}`)
-    ),
+    "Add Text": button((get) => addText(get("text"))),
+    // "Add Image": button((get) => addImage(get("image"))),
   });
 
   const isSelected = !!selectedUserDataStores.find((s) => s === store);
@@ -50,10 +44,38 @@ const FaceMesh = ({ geometry, material, text }: FaceMeshProps) => {
 
   // Handle image drop
   const onImageDrop = useCallback((imageUrl: string) => {
-    setImages((prevImages) => [...prevImages, imageUrl]);
+    setImages((prevImages) => ({
+      ...prevImages,
+      [Object.keys(prevImages).length]: imageUrl,
+    }));
   }, []);
 
+  // Handle text add
+  const addText = useCallback((text: string) => {
+    setTexts((prevTexts) => ({
+      ...prevTexts,
+      [Object.keys(prevTexts).length]: text,
+    }));
+  }, []);
+
+  // Handle image drop
   useImageDrop({ meshRef, onImageDrop });
+
+  // Handle text remove
+  const removeText = useCallback((text: string) => {
+    setTexts((prevTexts) => {
+      const { [text]: _, ...rest } = prevTexts;
+      return rest;
+    });
+  }, []);
+
+  // Handle image remove
+  const removeImage = useCallback((image: string) => {
+    setImages((prevImages) => {
+      const { [image]: _, ...rest } = prevImages;
+      return rest;
+    });
+  }, []);
 
   return (
     <>
@@ -80,25 +102,36 @@ const FaceMesh = ({ geometry, material, text }: FaceMeshProps) => {
           color={rgbToHex((materialProps as any)?.color || defaultColor)}
         />
 
-        <TextDecal
-          meshRef={meshRef}
-          text={text}
-          initialRotation={details?.rotation ?? [0, 0, 0]}
-          center={details?.faceCenter ?? new THREE.Vector3(0, 0, 0)}
-          boundingBox={details?.boundingBox ?? new THREE.Box3()}
-          normal={details?.faceNormal ?? new THREE.Vector3(0, 0, 0)}
-        />
-
         {meshRef.current &&
-          images.map((image, index) => (
-            <ImageDecal
-              meshRef={meshRef}
-              key={`${image}-${index}`}
-              url={image}
-              initialRotation={details?.rotation ?? [0, 0, 0]}
+          Object.entries(texts).map(([id, text]) => (
+            <TextDecal
+              key={`${text}-${id}`}
+              id={id}
+              text={text}
+              initialRotation={
+                details?.rotation ?? ([0, 0, 0] as [number, number, number])
+              }
               center={details?.faceCenter ?? new THREE.Vector3(0, 0, 0)}
               boundingBox={details?.boundingBox ?? new THREE.Box3()}
               normal={details?.faceNormal ?? new THREE.Vector3(0, 0, 0)}
+              onDelete={removeText}
+              meshRef={meshRef}
+            />
+          ))}
+
+        {meshRef.current &&
+          Object.entries(images).map(([id, image]) => (
+            <ImageDecal
+              meshRef={meshRef}
+              key={`${image}-${id}`}
+              url={image}
+              initialRotation={
+                details?.rotation ?? ([0, 0, 0] as [number, number, number])
+              }
+              center={details?.faceCenter ?? new THREE.Vector3(0, 0, 0)}
+              boundingBox={details?.boundingBox ?? new THREE.Box3()}
+              normal={details?.faceNormal ?? new THREE.Vector3(0, 0, 0)}
+              onDelete={removeImage}
             />
           ))}
       </mesh>

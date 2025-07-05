@@ -13,7 +13,7 @@ export function Panel({ selected }) {
 	);
 }
 
-export function useControlsDecals(selected, props) {
+export function useControlsDecals(selected, props, hiddenControls = []) {
 	const store = useCreateStore();
 	const isFirst = selected[0] === store;
 
@@ -33,7 +33,7 @@ export function useControlsDecals(selected, props) {
 							selected.forEach(
 								(s, i) => i > 0 && s.setValueAtPath(path, value)
 							),
-						render: (get) =>
+						render: hiddenControls.includes(key) ? () => false : (get) =>
 							selected.length === 1 ||
 							selected.every((store) => store.getData()[key]),
 					},
@@ -48,7 +48,7 @@ export function useControlsDecals(selected, props) {
 	return [store, decalProps, set];
 }
 
-export function useControlsFaceMesh(selected, props) {
+export function useControlsFaceMesh(selected, props, hiddenControls = []) {
 	const store = useCreateStore();
 	const isFirst = selected[0] === store;
 
@@ -68,7 +68,7 @@ export function useControlsFaceMesh(selected, props) {
 							selected.forEach(
 								(s, i) => i > 0 && s.setValueAtPath(path, value)
 							),
-						render: (get) =>
+						render: hiddenControls.includes(key) ? () => false : (get) =>
 							selected.length === 1 ||
 							selected.every((store) => store.getData()[key]),
 					},

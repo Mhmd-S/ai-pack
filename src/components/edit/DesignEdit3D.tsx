@@ -89,7 +89,7 @@ const OBJModelEdit: React.FC<OBJModelEditProps> = ({
 
 				<Environment preset="city" />
 				
-				<Select onChangePointerUp={handleSelectionChange}>
+				<Select onChangePointerUp={handleSelectionChange} on onSelect={handleSelectionChange}>
 					{obj.children.map(
 						(child: THREE.Object3D, index: number) => {
 							if (child instanceof THREE.Mesh) {

@@ -54,17 +54,17 @@ const Handler = ({
     onHover(false);
   }, [onHover, cursor]);
 
-  const relativeQuaternion = (rotation: [number, number, number]) => {
-    const parentQuaternion = new THREE.Quaternion();
-    parentQuaternion.setFromEuler(new THREE.Euler(rotation[0], rotation[1], rotation[2]));
+  // const relativeQuaternion = (rotation: [number, number, number]) => {
+  //   const parentQuaternion = new THREE.Quaternion();
+  //   parentQuaternion.setFromEuler(new THREE.Euler(rotation[0], rotation[1], rotation[2]));
 
-    const childQuaternion = new THREE.Quaternion();
-    childQuaternion.setFromEuler(new THREE.Euler(0,0,0));
+  //   const childQuaternion = new THREE.Quaternion();
+  //   childQuaternion.setFromEuler(new THREE.Euler(0,0,0));
 
-    const relativeQ = parentQuaternion.clone().premultiply(childQuaternion);
+  //   const relativeQ = parentQuaternion.clone().premultiply(childQuaternion);
   
-    return relativeQ;
-  }
+  //   return relativeQ;
+  // }
 
   // useEffect(() => {
   //   setRelativeQ(relativeQuaternion(rotation));
@@ -86,7 +86,9 @@ const Handler = ({
 
   const bind = useDrag(
     (state) => {
-      const { active, first, last, xy: [px, py] } = state;
+      const { active, first, last, xy: [px, py], event } = state;
+
+      event.stopPropagation();
 
       const ndc = new THREE.Vector2(
         (px / size.width) * 2 - 1,
@@ -119,9 +121,11 @@ const Handler = ({
         onDragEnd();
         handlePointerOut();
       }
+
     },
     {}
   );
+
 
   return (
     <Billboard

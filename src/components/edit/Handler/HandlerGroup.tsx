@@ -73,10 +73,6 @@ const handlers: HandlerConfig[] = [
   },
 ];
 
-/**
- * Renders resize handlers with "pivot-point" resizing.
- * This version has the corrected component hierarchy and data flow.
- */
 const HandlerGroup = ({
   position,
   scale,
@@ -94,7 +90,6 @@ const HandlerGroup = ({
     inverseRotationMatrix: new THREE.Matrix4(),
   }).current;
 
-  console.log("position", position);
   // This function is now for LOCAL space calculation
   const getPointInLocalSpace = (
     normalizedPos: [number, number],

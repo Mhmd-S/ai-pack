@@ -3,7 +3,7 @@ import { Html, Decal } from '@react-three/drei';
 import { ThreeElements } from '@react-three/fiber';
 import * as THREE from 'three';
 
-interface EditableTextProps {
+interface TextBoxProps {
 	meshRef: React.RefObject<THREE.Mesh>;
 	position: ThreeElements['mesh']['position'];
 	rotation: [number, number, number];
@@ -17,7 +17,42 @@ interface EditableTextProps {
 	setIsEditing: (isEditing: boolean) => void;
 }
 
-const EditableText = ({
+const wrapText = (
+	context: CanvasRenderingContext2D,
+	text: string,
+	x: number,
+	y: number,
+	maxWidth: number,
+	lineHeight: number
+) => {
+	const words = text.split(' ');
+	let line = '';
+	const lines = [];
+
+	for (let n = 0; n < words.length; n++) {
+		const testLine = line + words[n] + ' ';
+		const metrics = context.measureText(testLine);
+		const testWidth = metrics.width;
+		if (testWidth > maxWidth && n > 0) {
+			lines.push(line.trim());
+			line = words[n] + ' ';
+		} else {
+			line = testLine;
+		}
+	}
+	lines.push(line.trim());
+
+	const totalHeight = lines.length * lineHeight;
+	let currentY = y - totalHeight / 2;
+
+	context.textBaseline = 'top'; // Set baseline to top for easier calculation
+	for (let i = 0; i < lines.length; i++) {
+		context.fillText(lines[i], x, currentY);
+		currentY += lineHeight;
+	}
+};
+
+const TextBox = ({
 	meshRef,
 	initialText = 'Your text',
 	position,
@@ -29,9 +64,9 @@ const EditableText = ({
 	isSelected,
 	isEditing,
 	setIsEditing,
-}: EditableTextProps) => {
+}: TextBoxProps) => {
 	const [text, setText] = useState(initialText);
-	const htmlRef = useRef<HTMLDivElement>(null);
+	const htmlRef = useRef<HTMLTextAreaElement>(null);
 
 	// Handle clicks outside the text box to save
 	useEffect(() => {
@@ -43,6 +78,7 @@ const EditableText = ({
 				!htmlRef.current.contains(e.target as Node)
 			) {
 				setIsEditing(false);
+				e.stopPropagation();
 			}
 		};
 		if (isEditing) {
@@ -56,26 +92,40 @@ const EditableText = ({
 	const canvasTexture = useMemo(() => {
 		const canvas = document.createElement('canvas');
 		const context = canvas.getContext('2d');
-		const resolution = 256;
+		const resolution = 1024; // High res for crisp text
+		// Aspect ratio from decal's scale to prevent stretching
+		const aspectRatio = scale[1] > 0 ? scale[0] / scale[1] : 1;
 		canvas.width = resolution;
-		canvas.height = resolution;
+		canvas.height = resolution / aspectRatio;
 
 		if (context) {
-			const font = `bold ${resolution / 5}px ${fontFamily}`;
+			// Adjust font size based on the decal's height and base size.
+			// This ensures that as the decal gets taller, the font size increases.
+			const fontSizeOnCanvas = size * scale[1] * 120; // Multiplier adjusted for visual balance.
+
+			const lineHeight = fontSizeOnCanvas * 1.2;
+			const font = `bold ${fontSizeOnCanvas}px ${fontFamily}`;
+
 			context.font = font;
 			context.fillStyle = color;
 			context.textAlign = 'center';
-			context.textBaseline = 'middle';
 			context.clearRect(0, 0, canvas.width, canvas.height);
-			context.fillText(text, resolution / 2, resolution / 2);
+			wrapText(
+				context,
+				text,
+				canvas.width / 2,
+				canvas.height / 2,
+				canvas.width * 0.9, // 90% width to leave some padding
+				lineHeight
+			);
 		}
 
 		return new THREE.CanvasTexture(canvas);
-	}, [text, color, fontFamily]);
+	}, [text, color, fontFamily, scale, size]);
 
 	return (
 		<>
-			{isEditing ? (
+			{isEditing && isSelected ? (
 				<Html
 					position={position}
 					rotation={
@@ -87,10 +137,9 @@ const EditableText = ({
 					style={{ pointerEvents: isSelected ? 'auto' : 'none' }}
 					occlude={!isSelected && true}
 				>
-					<div
+					<textarea
 						ref={htmlRef}
-						contentEditable={isEditing}
-						suppressContentEditableWarning
+						autoFocus
 						onBlur={() => setIsEditing(false)}
 						onInput={(e) =>
 							setText(e.currentTarget.textContent || '')
@@ -101,18 +150,15 @@ const EditableText = ({
 							fontSize: size + 'px',
 							width: '100%',
 							height: '100%',
-							display: 'flex',
-							alignItems: 'center',
-							justifyContent: 'center',
 							textAlign: 'center',
 							color: color,
 							cursor: 'text',
 							userSelect: 'text',
 							boxSizing: 'border-box',
 							fontFamily: fontFamily,
+							wordWrap: 'break-word',
 						}}
-						// biome-ignore lint/security/noDangerouslySetInnerHtml: We need to set the initial text
-						dangerouslySetInnerHTML={{ __html: text }}
+						value={text}
 					/>
 				</Html>
 			) : (
@@ -123,11 +169,6 @@ const EditableText = ({
 						new THREE.Euler(rotation[0], rotation[1], rotation[2])
 					}
 					scale={scale}
-					onClick={(e) => {
-						if (!isSelected) return;
-						e.stopPropagation();
-						setIsEditing(true);
-					}}
 				>
 					<meshBasicMaterial
 						map={canvasTexture}
@@ -141,4 +182,4 @@ const EditableText = ({
 	);
 };
 
-export default EditableText;
+export default TextBox;

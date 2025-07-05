@@ -10,6 +10,7 @@ interface DecalMeshProps {
 	rotation: [number, number, number];
 	onPointerOver: (e: THREE.Event) => void;
 	onPointerOut: () => void;
+	onPointerDown?: () => void;
 }
 
 const DecalMesh = ({
@@ -19,6 +20,7 @@ const DecalMesh = ({
 	isHovered,
 	store,
 	rotation,
+	onPointerDown,
 	onPointerOver,
 	onPointerOut,
 }: DecalMeshProps) => {
@@ -29,7 +31,13 @@ const DecalMesh = ({
 			onPointerOver={onPointerOver}
 			onPointerOut={onPointerOut}
 			userData={{ store, isDecal: true }}
-			
+			onPointerDown={(e) => {
+				// e.stopPropagation();
+				onPointerDown?.();
+			}}
+			onPointerUp={(e) => {
+				e.stopPropagation();
+			}}
 		>
 			<planeGeometry args={scale} />
 			<meshBasicMaterial transparent opacity={0.1} color="hotpink" />
