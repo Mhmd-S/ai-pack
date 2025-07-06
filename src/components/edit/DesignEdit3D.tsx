@@ -28,14 +28,14 @@ const OBJModelEdit: React.FC<OBJModelEditProps> = ({
 	const [isLoading, setIsLoading] = useState(true);
 	const [selected, setSelected] = useState<Object3D[]>([]);
 
-	const handleSelectionChange = (selectedObjects: Object3D[]) => {
-		setSelected(selectedObjects);
-	};
-
 	const locked = useMemo(() => {
 		if (!selected && selected?.length == 0) return false;
 		return !!selected[0]?.userData?.isDecal;
 	}, [selected]);
+
+	const handleSelectionChange = (selectedObjects: Object3D[]) => {
+		setSelected(selectedObjects);
+	};
 
 	return (
 		<div style={{ position: 'relative', width: '100%', height: '100%' }}>
@@ -67,9 +67,9 @@ const OBJModelEdit: React.FC<OBJModelEditProps> = ({
 					enableRotate={!locked}
 				/>
 
-				<GizmoHelper alignment="bottom-right" margin={[100, 100]}>
+				{/* <GizmoHelper alignment="bottom-right" margin={[100, 100]}>
 					<GizmoViewport labelColor="white" axisHeadScale={1} />
-				</GizmoHelper>
+				</GizmoHelper> */}
 
 				<Grid
 					position={[0, 0, 0]} // Adjust position as needed
@@ -89,7 +89,7 @@ const OBJModelEdit: React.FC<OBJModelEditProps> = ({
 
 				<Environment preset="city" />
 				
-				<Select onChangePointerUp={handleSelectionChange} on onSelect={handleSelectionChange}>
+				<Select onChangePointerUp={handleSelectionChange}>
 					{obj.children.map(
 						(child: THREE.Object3D, index: number) => {
 							if (child instanceof THREE.Mesh) {

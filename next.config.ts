@@ -6,6 +6,15 @@ const nextConfig: NextConfig = {
       bodySizeLimit: '10mb',
     },
   },
+  webpack: (config, { isServer }) => {
+    // Prefer ES modules over CommonJS for @react-three/drei
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@react-three/drei': '@react-three/drei/web',
+    };
+    
+    return config;
+  },
   images: {
     remotePatterns: [
       {

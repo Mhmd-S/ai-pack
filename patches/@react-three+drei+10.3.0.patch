@@ -1,0 +1,177 @@
+diff --git a/node_modules/@react-three/drei/web/Select.js b/node_modules/@react-three/drei/web/Select.js
+index 8ac9127..9b2f935 100644
+--- a/node_modules/@react-three/drei/web/Select.js
++++ b/node_modules/@react-three/drei/web/Select.js
+@@ -6,6 +6,7 @@ import { useThree } from '@react-three/fiber';
+ import { shallow } from 'zustand/shallow';
+ 
+ const context = /* @__PURE__ */React.createContext([]);
++
+ function Select({
+   box,
+   multiple,
+@@ -18,6 +19,7 @@ function Select({
+   ...props
+ }) {
+   const [downed, down] = React.useState(false);
++  
+   const {
+     setEvents,
+     camera,
+@@ -27,20 +29,26 @@ function Select({
+     size,
+     get
+   } = useThree();
++ 
+   const [hovered, hover] = React.useState(false);
++ 
+   const [active, dispatch] = React.useReducer(
+   // @ts-expect-error
+   (state, {
+     object,
+     shift
+   }) => {
+-    if (object === undefined) return [];else if (Array.isArray(object)) return object;else if (!shift) return state[0] === object ? [] : [object];
++    // The last return was edited to return [object] so if we click on an object twice it wont deselect it
++    if (object === undefined) return [];else if (Array.isArray(object)) return object;else if (!shift) return [object];
++
+     // @ts-expect-error
+     else if (state.includes(object)) return state.filter(o => o !== object);else return [object, ...state];
+   }, []);
++
+   React.useEffect(() => {
+     if (downed) onChange == null || onChange(active);else onChangePointerUp == null || onChangePointerUp(active);
+   }, [active, downed]);
++  
+   const onClick = React.useCallback(e => {
+     e.stopPropagation();
+     dispatch({
+@@ -48,21 +56,29 @@ function Select({
+       shift: multiple && e.shiftKey
+     });
+   }, []);
++  
+   const onPointerMissed = React.useCallback(e => !hovered && dispatch({}), [hovered]);
++  
+   const ref = React.useRef(null);
++  
+   React.useEffect(() => {
++    
+     if (!box || !multiple) return;
++    
+     const selBox = new SelectionBox(camera, ref.current);
+     const element = document.createElement('div');
++    
+     element.style.pointerEvents = 'none';
+     element.style.border = border;
+     element.style.backgroundColor = backgroundColor;
+     element.style.position = 'fixed';
++    
+     const startPoint = new THREE.Vector2();
+     const pointTopLeft = new THREE.Vector2();
+     const pointBottomRight = new THREE.Vector2();
+     const oldRaycasterEnabled = get().events.enabled;
+     const oldControlsEnabled = controls == null ? void 0 : controls.enabled;
++
+     let isDown = false;
+     function prepareRay(event, vec) {
+       const {
+@@ -75,14 +91,20 @@ function Select({
+       } = size;
+       vec.set(offsetX / width * 2 - 1, -(offsetY / height) * 2 + 1);
+     }
++
+     function onSelectStart(event) {
+       var _gl$domElement$parent;
++    
+       if (controls) controls.enabled = false;
++    
+       setEvents({
+         enabled: false
+       });
++    
+       down(isDown = true);
++    
+       (_gl$domElement$parent = gl.domElement.parentElement) == null || _gl$domElement$parent.appendChild(element);
++    
+       element.style.left = `${event.clientX}px`;
+       element.style.top = `${event.clientY}px`;
+       element.style.width = '0px';
+@@ -90,6 +112,7 @@ function Select({
+       startPoint.x = event.clientX;
+       startPoint.y = event.clientY;
+     }
++    
+     function onSelectMove(event) {
+       pointBottomRight.x = Math.max(startPoint.x, event.clientX);
+       pointBottomRight.y = Math.max(startPoint.y, event.clientY);
+@@ -100,6 +123,7 @@ function Select({
+       element.style.width = `${pointBottomRight.x - pointTopLeft.x}px`;
+       element.style.height = `${pointBottomRight.y - pointTopLeft.y}px`;
+     }
++    
+     function onSelectOver() {
+       if (isDown) {
+         var _element$parentElemen;
+@@ -111,18 +135,25 @@ function Select({
+         (_element$parentElemen = element.parentElement) == null || _element$parentElemen.removeChild(element);
+       }
+     }
++    
+     function pointerDown(event) {
+       if (event.shiftKey) {
+         onSelectStart(event);
+         prepareRay(event, selBox.startPoint);
+       }
+     }
++    
+     let previous = [];
++    
+     function pointerMove(event) {
++
+       if (isDown) {
++    
+         onSelectMove(event);
+         prepareRay(event, selBox.endPoint);
++    
+         const allSelected = selBox.select().sort(o => o.uuid).filter(o => o.isMesh);
++    
+         if (!shallow(allSelected, previous)) {
+           previous = allSelected;
+           dispatch({
+@@ -131,28 +162,34 @@ function Select({
+         }
+       }
+     }
++
+     function pointerUp(event) {
+       if (isDown) onSelectOver();
+     }
++    
+     document.addEventListener('pointerdown', pointerDown, {
+       passive: true
+     });
++    
+     document.addEventListener('pointermove', pointerMove, {
+       passive: true,
+       capture: true
+     });
++    
+     document.addEventListener('pointerup', pointerUp, {
+       passive: true
+     });
++    
+     return () => {
+       document.removeEventListener('pointerdown', pointerDown);
+       document.removeEventListener('pointermove', pointerMove, true);
+       document.removeEventListener('pointerup', pointerUp);
+     };
+   }, [size.width, size.height, raycaster, camera, controls, gl]);
++  
+   return /*#__PURE__*/React.createElement("group", _extends({
+     ref: ref,
+-    onClick: onClick,
++    onPointerDown: onClick,
+     onPointerOver: () => hover(true),
+     onPointerOut: () => hover(false),
+     onPointerMissed: onPointerMissed

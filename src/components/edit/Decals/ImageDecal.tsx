@@ -1,4 +1,4 @@
-import { Decal, useTexture } from '@react-three/drei';
+import { Decal, useTexture, useSelect } from '@react-three/drei';
 import RotationHandler from '../Handler/RotationHandler';
 
 import * as THREE from 'three';
@@ -6,6 +6,7 @@ import { useDecalDrag } from '@/hooks/useDecalDrag';
 import HandlerGroup from '../Handler/HandlerGroup';
 import DecalMesh from './DecalMesh';
 import { button } from 'leva';
+import { useControlsDecals } from '@/components/edit/MultiLeva';
 
 interface ImageDecalProps {
 	url: string;
@@ -40,10 +41,20 @@ const ImageDecal = ({ url, meshRef, id, initialRotation, center, boundingBox, no
 		}),
 	};
 
+	const selectedUserDataStores = useSelect().map((sel) => sel.userData.store);
+
+	// @ts-ignore - useControlsDecals has incorrect typing for hiddenControls parameter
+	const [store, materialProps, set] = useControlsDecals(
+		selectedUserDataStores,
+		levaConfig,
+		// @ts-ignore
+		["rotation"] // Hide rotation controls
+	) as [any, any, (props: any) => void];
+
+	const isSelected = !!selectedUserDataStores.find((s) => s === store);
+
 	const {
 		state,
-		materialProps,
-		store,
 		bind,
 		handlers
 	} = useDecalDrag({
@@ -51,8 +62,10 @@ const ImageDecal = ({ url, meshRef, id, initialRotation, center, boundingBox, no
 		center,
 		boundingBox,
 		initialRotation,
+		isSelected,
 		onDelete,
-		levaConfig
+		materialProps,
+		onUpdate: set,
 	});
 
 	const currentScale = materialProps.scale || [1, 1];
@@ -70,7 +83,7 @@ const ImageDecal = ({ url, meshRef, id, initialRotation, center, boundingBox, no
 					]}
 					rotation={materialProps.rotation}
 					scale={currentScale}
-					isSelected={state.isSelected}
+					isSelected={isSelected}
 					isHovered={state.hovered}
 					store={store}
 					onPointerOver={handlers.handlePointerOver}
@@ -98,7 +111,7 @@ const ImageDecal = ({ url, meshRef, id, initialRotation, center, boundingBox, no
 			</Decal>
 
 			{/* Handler group for resize handles */}
-			{state.isSelected && (
+			{isSelected && (
 				<>
 					<HandlerGroup
 						scale={currentScale}

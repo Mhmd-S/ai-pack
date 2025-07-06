@@ -78,6 +78,7 @@ const RotationHandler = ({
 
 	const bind = useDrag(
 		({ first, last, event }) => {
+			event.stopPropagation();
 			const e = event as unknown as PointerEvent;
 			if (first) {
 				setIsRotating(true);
