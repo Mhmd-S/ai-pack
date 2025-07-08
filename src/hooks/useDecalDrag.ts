@@ -34,6 +34,7 @@ export const useDecalDrag = ({
   onDelete,
   materialProps,
   onUpdate,
+  disableDrag = false,
   disableKeyboardDelete = false,
   onPointerDown,
 }: UseDecalDragProps) => {
@@ -87,10 +88,10 @@ export const useDecalDrag = ({
 
   const bind = useDrag(
     ({ event, down, first }) => {
+
       event.stopPropagation();
 
-      console.log("bind", isResizing, isRotating, isSelected);
-      if (isResizing || isRotating || !isSelected) return;
+      if (isResizing || isRotating || !isSelected || disableDrag) return;
 
       const e = event as unknown as ThreeEvent<PointerEvent>;
 

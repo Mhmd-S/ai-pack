@@ -63,11 +63,9 @@ const TextDecal = ({
     ["scale", "rotation"] as any // Hide scale and rotation controls
   ) as [any, any, (props: any) => void];
 
-  console.log("selectedUserDataStores", selectedUserDataStores);
   const isSelected = !!selectedUserDataStores.find((s) => s === store);
 
   const toggleEditing = async () => {
-    console.log("toggleEditing", state.isMoving, state.isResizing, state.isRotating, isSelected);
     if (state.isMoving || state.isResizing || state.isRotating || !isSelected)
       return;
     await new Promise((resolve) => setTimeout(resolve, 300));
@@ -82,6 +80,7 @@ const TextDecal = ({
     isSelected,
     onDelete,
     materialProps,
+    disableDrag: isEditing,
     onUpdate: set,
     onPointerDown: toggleEditing,
     disableKeyboardDelete: true, // TextDecal handles its own keyboard events
