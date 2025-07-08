@@ -1,185 +1,158 @@
-import { useRef, useState, useEffect, useMemo } from 'react';
-import { Html, Decal } from '@react-three/drei';
-import { ThreeElements } from '@react-three/fiber';
-import * as THREE from 'three';
+import { useRef, useState, useEffect } from "react";
+import { Text, Input, Container, Root } from "@react-three/uikit";
+import { ThreeElements } from "@react-three/fiber";
+import * as THREE from "three";
 
 interface TextBoxProps {
-	meshRef: React.RefObject<THREE.Mesh>;
-	position: ThreeElements['mesh']['position'];
-	rotation: [number, number, number];
-	scale: [number, number, number];
-	initialText?: string;
-	color: string;
-	size: number;
-	fontFamily: string;
-	isSelected: boolean;
-	isEditing: boolean;
-	setIsEditing: (isEditing: boolean) => void;
+  position: ThreeElements["mesh"]["position"];
+  rotation: [number, number, number];
+  scale: [number, number, number];
+  initialText?: string;
+  color: string;
+  size: number;
+  bind: any;
+  fontFamily: string;
+  isSelected: boolean;
+  isEditing: boolean;
+  setIsEditing: (isEditing: boolean) => void;
+  isHovered?: boolean;
+  onPointerOver?: (e: any) => void;
+  onPointerOut?: (e: any) => void;
+  store: any;
 }
 
-const wrapText = (
-	context: CanvasRenderingContext2D,
-	text: string,
-	x: number,
-	y: number,
-	maxWidth: number,
-	lineHeight: number
-) => {
-	const words = text.split(' ');
-	let line = '';
-	const lines = [];
-
-	for (let n = 0; n < words.length; n++) {
-		const testLine = line + words[n] + ' ';
-		const metrics = context.measureText(testLine);
-		const testWidth = metrics.width;
-		if (testWidth > maxWidth && n > 0) {
-			lines.push(line.trim());
-			line = words[n] + ' ';
-		} else {
-			line = testLine;
-		}
-	}
-	lines.push(line.trim());
-
-	const totalHeight = lines.length * lineHeight;
-	let currentY = y - totalHeight / 2;
-
-	context.textBaseline = 'top'; // Set baseline to top for easier calculation
-	for (let i = 0; i < lines.length; i++) {
-		context.fillText(lines[i], x, currentY);
-		currentY += lineHeight;
-	}
-};
-
 const TextBox = ({
-	meshRef,
-	initialText = 'Your text',
-	position,
-	rotation,
-	scale,
-	color,
-	size,
-	fontFamily,
-	isSelected,
-	isEditing,
-	setIsEditing,
+  initialText = "Your text",
+  position,
+  rotation,
+  scale,
+  color,
+  size,
+  bind,
+  fontFamily,
+  isSelected,
+  isEditing,
+  setIsEditing,
+  isHovered = false,
+  onPointerOver,
+  onPointerOut,
+  store,
 }: TextBoxProps) => {
-	const [text, setText] = useState(initialText);
-	const htmlRef = useRef<HTMLTextAreaElement>(null);
+  const [text, setText] = useState(initialText);
+  const inputRef = useRef<any>(null);
 
-	// Handle clicks outside the text box to save
-	useEffect(() => {
-		const handleClickOutside = (e: MouseEvent) => {
-			if (!isSelected) return;
+  // Handle clicks outside the text box to save
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (!isSelected) return;
 
-			if (
-				htmlRef.current &&
-				!htmlRef.current.contains(e.target as Node)
-			) {
-				setIsEditing(false);
-				e.stopPropagation();
-			}
-		};
-		if (isEditing) {
-			document.addEventListener('mousedown', handleClickOutside);
-		}
-		return () => {
-			document.removeEventListener('mousedown', handleClickOutside);
-		};
-	}, [isEditing, isSelected]);
+      if (isEditing) {
+        setIsEditing(false);
+        e.stopPropagation();
+      }
+    };
 
-	const canvasTexture = useMemo(() => {
-		const canvas = document.createElement('canvas');
-		const context = canvas.getContext('2d');
-		const resolution = 1024; // High res for crisp text
-		// Aspect ratio from decal's scale to prevent stretching
-		const aspectRatio = scale[1] > 0 ? scale[0] / scale[1] : 1;
-		canvas.width = resolution;
-		canvas.height = resolution / aspectRatio;
+    if (isEditing) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
 
-		if (context) {
-			// Adjust font size based on the decal's height and base size.
-			// This ensures that as the decal gets taller, the font size increases.
-			const fontSizeOnCanvas = size * scale[1] * 120; // Multiplier adjusted for visual balance.
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isEditing, isSelected, setIsEditing]);
 
-			const lineHeight = fontSizeOnCanvas * 1.2;
-			const font = `bold ${fontSizeOnCanvas}px ${fontFamily}`;
+  // Handle keyboard events
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!isEditing || !isSelected) return;
 
-			context.font = font;
-			context.fillStyle = color;
-			context.textAlign = 'center';
-			context.clearRect(0, 0, canvas.width, canvas.height);
-			wrapText(
-				context,
-				text,
-				canvas.width / 2,
-				canvas.height / 2,
-				canvas.width * 0.9, // 90% width to leave some padding
-				lineHeight
-			);
-		}
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        setIsEditing(false);
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setIsEditing(false);
+      }
+    };
 
-		return new THREE.CanvasTexture(canvas);
-	}, [text, color, fontFamily, scale, size]);
+    if (isEditing) {
+      document.addEventListener("keydown", handleKeyDown);
+    }
 
-	return (
-		<>
-			{isEditing && isSelected ? (
-				<Html
-					position={position}
-					rotation={
-						new THREE.Euler(rotation[0], rotation[1], rotation[2])
-					}
-					scale={scale}
-					transform // Positions relative to parent mesh
-					center // Centers the div on the mesh
-					style={{ pointerEvents: isSelected ? 'auto' : 'none' }}
-					occlude={!isSelected && true}
-				>
-					<textarea
-						ref={htmlRef}
-						autoFocus
-						onBlur={() => setIsEditing(false)}
-						onInput={(e) =>
-							setText(e.currentTarget.textContent || '')
-						}
-						style={{
-							background: 'transparent',
-							padding: '2px',
-							fontSize: size + 'px',
-							width: '100%',
-							height: '100%',
-							textAlign: 'center',
-							color: color,
-							cursor: 'text',
-							userSelect: 'text',
-							boxSizing: 'border-box',
-							fontFamily: fontFamily,
-							wordWrap: 'break-word',
-						}}
-						value={text}
-					/>
-				</Html>
-			) : (
-				<Decal
-					mesh={meshRef}
-					position={position as THREE.Vector3}
-					rotation={
-						new THREE.Euler(rotation[0], rotation[1], rotation[2])
-					}
-					scale={scale}
-				>
-					<meshBasicMaterial
-						map={canvasTexture}
-						polygonOffset
-						polygonOffsetFactor={-1} // Prevents z-fighting
-						transparent
-					/>
-				</Decal>
-			)}
-		</>
-	);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isEditing, isSelected, setIsEditing]);
+
+  const handleInputChange = (value: string) => {
+    setText(value);
+  };
+
+  const pixelSize = size * scale[1] * 20; // Convert to pixel size
+  const rootWidth = scale[0] * 4; // Convert to uikit units (smaller)
+  const rootHeight = scale[1] * 2; // Convert to uikit units (smaller)
+
+  // Apply hover styling
+  const displayColor = color; // Keep original color, no hover color change
+  const borderColor = isHovered && !isEditing ? 'red' : color;
+  const borderWidth = isHovered && !isEditing ? 2 : 0;
+
+  return (
+    <group
+      position={position}
+      rotation={new THREE.Euler(rotation[0], rotation[1], rotation[2])}
+      onPointerOver={onPointerOver}
+      onPointerOut={onPointerOut}
+      userData={{ store, isDecal: true }}
+    >
+      <Root
+        sizeX={rootWidth}
+        sizeY={rootHeight}
+        flexDirection="column"
+        alignItems="center"
+        justifyContent="center"
+      >
+        <Container
+          width="100%"
+          height="100%"
+          alignItems="center"
+          justifyContent="center"
+          borderColor={borderColor}
+          borderWidth={borderWidth}
+        >
+          {isEditing && isSelected ? (
+            <Input
+              ref={inputRef}
+              value={text}
+              onValueChange={handleInputChange}
+              multiline
+              fontSize={pixelSize}
+              color={displayColor}
+              backgroundColor="transparent"
+              borderColor={borderColor}
+              borderWidth={borderWidth}
+              backgroundOpacity={1}
+              width="90%"
+              height="90%"
+              padding={4}
+            />
+          ) : (
+            <Text
+              fontSize={pixelSize}
+              color={displayColor}
+              textAlign="center"
+              maxWidth="90%"
+              opacity={1}
+              userData={{ store, isDecal: true }}
+            >
+              {text}
+            </Text>
+          )}
+        </Container>
+      </Root>
+    </group>
+  );
 };
 
 export default TextBox;

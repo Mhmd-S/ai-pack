@@ -1,0 +1,18 @@
+diff --git a/node_modules/@react-three/uikit/dist/text.js b/node_modules/@react-three/uikit/dist/text.js
+index 818193e..296ca57 100644
+--- a/node_modules/@react-three/uikit/dist/text.js
++++ b/node_modules/@react-three/uikit/dist/text.js
+@@ -16,6 +16,13 @@ export const Text = forwardRef((properties, ref) => {
+     fontFamilies.value = useFontFamilies();
+     const internals = useMemo(() => createTextState(parent, textSignal, fontFamilies, propertySignals.style, propertySignals.properties, propertySignals.default), [fontFamilies, parent, propertySignals, textSignal]);
+     internals.interactionPanel.name = properties.name ?? '';
++
++    if (properties.userData) {
++        internals.interactionPanel.userData = properties.userData;
++    }
++
++    console.log(internals.interactionPanel);
++
+     useEffect(() => {
+         if (outerRef.current == null) {
+             return;

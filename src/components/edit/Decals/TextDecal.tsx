@@ -3,9 +3,8 @@ import RotationHandler from "../Handler/RotationHandler";
 
 import TextBox from "@/components/edit/Decals/TextBox";
 import * as THREE from "three";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import HandlerGroup from "../Handler/HandlerGroup";
-import DecalMesh from "./DecalMesh";
 import { button } from "leva";
 import { useSelect } from "@react-three/drei";
 import { useControlsDecals } from "@/components/edit/MultiLeva";
@@ -61,9 +60,10 @@ const TextDecal = ({
   const [store, materialProps, set] = useControlsDecals(
     selectedUserDataStores,
     levaConfig,
-    ["scale", "rotation"] // Hide scale and rotation controls
+    ["scale", "rotation"] as any // Hide scale and rotation controls
   ) as [any, any, (props: any) => void];
 
+  console.log("selectedUserDataStores", selectedUserDataStores);
   const isSelected = !!selectedUserDataStores.find((s) => s === store);
 
   const toggleEditing = async () => {
@@ -86,8 +86,6 @@ const TextDecal = ({
     onPointerDown: toggleEditing,
     disableKeyboardDelete: true, // TextDecal handles its own keyboard events
   });
-
-  const currentScale = materialProps.scale || [1, 0.5];
 
   useEffect(() => {
     if (state.isMoving) {
@@ -118,66 +116,34 @@ const TextDecal = ({
     <>
       {/* Visual representation mesh */}
       {/* A interactable interface for the user, the decal itself is too rigid to control directly */}
-      {isSelected && (
-        <group {...bind()}>
-          <DecalMesh
-            position={[
-              materialProps.position[0],
-              materialProps.position[1],
-              materialProps.position[2],
-            ]}
-            rotation={materialProps.rotation}
-            scale={currentScale}
-            isSelected={isSelected}
-            isHovered={state.hovered}
-            store={store}
-            onPointerOver={handlers.handlePointerOver}
-            onPointerOut={() => handlers.setHover(false)}
-          />
-        </group>
-      )}
-
-      {!isSelected && (
-        <DecalMesh
-          position={[
-            materialProps.position[0],
-            materialProps.position[1],
-            materialProps.position[2],
-          ]}
-          rotation={materialProps.rotation}
-          scale={currentScale}
-          isSelected={isSelected}
-          isHovered={state.hovered}
-          store={store}
-          onPointerOver={handlers.handlePointerOver}
-          onPointerOut={() => handlers.setHover(false)}
-        />
-      )}
-
       {/* The actual editable text */}
       <TextBox
+        bind={bind}
         position={[
           materialProps.position[0],
           materialProps.position[1],
           materialProps.position[2],
         ]}
+        store={store}
         setIsEditing={setIsEditing}
         rotation={materialProps.rotation}
-        scale={[currentScale[0], currentScale[1], 1]}
+        scale={[materialProps.scale[0], materialProps.scale[1], 1]}
         initialText={text}
         color={materialProps.color}
         size={materialProps.size}
         fontFamily={materialProps["font family"]}
         isSelected={isSelected}
         isEditing={isEditing}
-        meshRef={meshRef}
+        isHovered={state.hovered}
+        onPointerOver={handlers.handlePointerOver}
+        onPointerOut={() => handlers.setHover(false)}
       />
 
       {/* Handler group for resize handles */}
       {isSelected && (
         <>
           <HandlerGroup
-            scale={currentScale}
+            scale={materialProps.scale}
             position={[
               materialProps.position[0],
               materialProps.position[1],
@@ -195,7 +161,7 @@ const TextDecal = ({
               materialProps.position[1],
               materialProps.position[2],
             ]}
-            scale={currentScale}
+            scale={materialProps.scale}
             rotation={materialProps.rotation}
             normal={normal}
             onUpdate={handlers.handleRotationUpdate}
