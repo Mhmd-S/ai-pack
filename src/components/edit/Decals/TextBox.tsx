@@ -52,7 +52,6 @@ const TextBox = ({
   const containerRef = useRef<any>(null);
   const clickedInsideRef = useRef(false);
   const rootRef = useRef<any>(null);
-  const initialSize = 16;
 
   // Console log the interactionPanel when textRef changes
   useEffect(() => {
@@ -70,11 +69,13 @@ const TextBox = ({
       inputRef.current.element.style.overflowWrap = "break-word";
       inputRef.current.element.style.whiteSpace = "normal";
     }
+
+    console.log('inputRef.current', inputRef.current.element);
   }, [isEditing, isSelected, inputRef.current, text]);
 
   // useEffect for font Size -> Scale. When the size changes, we need to update the scale, by hooking to the containerRef.interactionPanel.scale and copying the scale to the scale prop while mainting aspect ratio
   useEffect(() => {
-    if (size === initialSize || !isSelected || isEditing || resizeType === 'edge-x') return;
+    if (!isSelected || isEditing || resizeType === 'edge-x') return;
     // || resizeType === 'edge-x'
     
       const scalePanel = containerRef.current?.interactionPanel?.scale;
@@ -84,7 +85,7 @@ const TextBox = ({
       
       // Use y as the primary dimension and calculate x proportionally
       const newScaleY = scalePanel.y;
-      const newScaleX = newScaleY * aspectRatio;
+      const newScaleX = isResizing ? newScaleY * aspectRatio : scale[0];
       
       const rawScale: [number, number] = [newScaleX, newScaleY];
       // const filteredScale = applyNoiseFilter(rawScale, scale);
@@ -216,7 +217,6 @@ const TextBox = ({
 
   const getRootProps = () => {
     const rootWidth = scale[0];
-    const rootHeight = scale[1] * 2;
 
     return {
       pixelSize : 0.002,
@@ -230,8 +230,8 @@ const TextBox = ({
   };
 
   const getContainerProps = () => {
-    const borderColor = (isHovered || isSelected) && !isEditing ? "red" : color;
-    const borderWidth = isSelected && !isEditing ? 0.1 : 0.01;
+    const borderColor = (isHovered || isSelected) ? "red" : color;
+    const borderWidth = isSelected ? 0.4 : 0;
 
     return {
       ref: containerRef,
@@ -247,7 +247,7 @@ const TextBox = ({
   };
 
   const getInputProps = () => {
-    const pixelSize = size * scale[1] * 5;
+    const pixelSize = size;
     const displayColor = color;
 
     // Different caret widths based on state
@@ -261,13 +261,13 @@ const TextBox = ({
       fontSize: pixelSize,
       color: displayColor,
       borderColor: "red",
-      lineHeight: 0,
+      lineHeight: pixelSize,
       borderWidth: 0.1,
       caretWidth,
       caretBorderWidth: 0.01,
       backgroundOpacity: 0,
       width: "100%" as const,
-      height: "100%" as const,
+      height: "auto",
     };
   };
 
@@ -281,11 +281,12 @@ const TextBox = ({
     return {
       ref: textRef,
       fontSize: pixelSize,
+      // lineHeight: pixelSize,
       color: displayColor,
       textAlign,
       wordBreak: "break-all" as const,
       width: '100%' as const,
-      height: '100%' as const,
+      height: 'auto',
       opacity: 1,
     };
   };

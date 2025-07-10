@@ -69,7 +69,7 @@ const TextDecal = ({
   const [store, materialProps, set] = useControlsDecals(
     selectedUserDataStores,
     levaConfig,
-    ['rotation'] as any // Hide scale and rotation controls
+    [] as any // Hide scale and rotation controls
   ) as [any, any, (props: any) => void];
 
   const isSelected = !!selectedUserDataStores.find((s) => s === store);

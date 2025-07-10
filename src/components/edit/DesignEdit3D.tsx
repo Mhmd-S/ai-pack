@@ -29,7 +29,7 @@ const OBJModelEdit: React.FC<OBJModelEditProps> = ({
 	const [selected, setSelected] = useState<Object3D[]>([]);
 
 	const locked = useMemo(() => {
-		if (!selected && selected?.length == 0) return false;
+		if (!selected || selected.length === 0) return false;
 		return !!selected[0]?.userData?.isDecal;
 	}, [selected]);
 
@@ -55,6 +55,7 @@ const OBJModelEdit: React.FC<OBJModelEditProps> = ({
 					far={1000}
 				/>
 				<OrbitControls
+					key={`orbit-controls-${locked ? 'locked' : 'unlocked'}`}
 					target={[0, 0, 0]}
 					enableDamping
 					dampingFactor={0.05}

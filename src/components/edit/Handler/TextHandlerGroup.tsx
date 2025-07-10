@@ -161,29 +161,35 @@ const TextHandlerGroup = ({
 
       // Calculate the effective scale change due to font size change
       const fontSizeRatio = newSize / initialSize;
-      const effectiveNewScale: [number, number] = [
-        initialScale.x * fontSizeRatio,
-        initialScale.y * fontSizeRatio
-      ];
-
+      
       // Keep the reported scale the same for corners since we're changing font size
       newScale = [initialScale.x, initialScale.y];
 
-      // Calculate where the pivot point would be with the new effective scale
+      // To keep the pivot fixed in world space, we need to calculate how much 
+      // the center should move when the effective size changes
       const pivotNormalizedPos: [number, number] = [
         -handler.normalizedPosition[0],
         -handler.normalizedPosition[1],
       ];
-      const newPivotLocalPos = getPointInLocalSpace(
-        pivotNormalizedPos,
-        effectiveNewScale
+      
+      // The pivot offset from center scales with the font size change
+      const initialPivotOffset = new THREE.Vector3(
+        initialScale.x * pivotNormalizedPos[0],
+        initialScale.y * pivotNormalizedPos[1],
+        0
       );
-
-      // The offset is the change in the pivot's local position
-      // This ensures the pivot point stays fixed in world space
+      
+      const newPivotOffset = new THREE.Vector3(
+        initialScale.x * fontSizeRatio * pivotNormalizedPos[0],
+        initialScale.y * fontSizeRatio * pivotNormalizedPos[1],
+        0
+      );
+      
+      // The center needs to move by the difference in pivot offsets
+      // to keep the pivot point fixed in world space
       centerOffset = new THREE.Vector3().subVectors(
-        pivotPoint,
-        newPivotLocalPos
+        initialPivotOffset,
+        newPivotOffset
       );
     } else if (handler.type === "edge-x") {
       // For horizontal edge handlers: change scale X only
