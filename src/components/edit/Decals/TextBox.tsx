@@ -12,6 +12,7 @@ interface TextBoxProps {
   size: number;
   bind: any;
   fontFamily: string;
+  alignText: string;
   isSelected: boolean;
   isEditing: boolean;
   setIsEditing: (isEditing: boolean) => void;
@@ -19,6 +20,9 @@ interface TextBoxProps {
   onPointerOver?: (e: any) => void;
   onPointerOut?: (e: any) => void;
   store: any;
+  set: (props: { scale?: [number, number]; size?: number }) => void;
+  isResizing?: boolean;
+  resizeType?: 'corner' | 'edge-x' | 'edge-y' | null;
 }
 
 const TextBox = ({
@@ -30,17 +34,100 @@ const TextBox = ({
   size,
   bind,
   fontFamily,
+  alignText,
   isSelected,
   isEditing,
-  setIsEditing,
   isHovered = false,
+  setIsEditing,
+  set,
   onPointerOver,
   onPointerOut,
   store,
+  isResizing = false,
+  resizeType = null,
 }: TextBoxProps) => {
   const [text, setText] = useState(initialText);
   const inputRef = useRef<any>(null);
+  const textRef = useRef<any>(null);
+  const containerRef = useRef<any>(null);
   const clickedInsideRef = useRef(false);
+  const rootRef = useRef<any>(null);
+  const initialSize = 16;
+
+  // Console log the interactionPanel when textRef changes
+  useEffect(() => {
+    if (textRef.current && textRef.current.interactionPanel) {
+      // Add userData to the interactionPanel
+      textRef.current.interactionPanel.userData = { store, isDecal: true };
+    }
+  }, []);
+
+  // not working
+  useEffect(() => {
+    if (inputRef.current && inputRef?.current?.element?.style?.wordBreak !== "break-all") {
+      inputRef.current.element.style.wordBreak = "break-all";
+      inputRef.current.element.style.wordWrap = "break-word";
+      inputRef.current.element.style.overflowWrap = "break-word";
+      inputRef.current.element.style.whiteSpace = "normal";
+    }
+  }, [isEditing, isSelected, inputRef.current, text]);
+
+  // useEffect for font Size -> Scale. When the size changes, we need to update the scale, by hooking to the containerRef.interactionPanel.scale and copying the scale to the scale prop while mainting aspect ratio
+  useEffect(() => {
+    if (size === initialSize || !isSelected || isEditing || resizeType === 'edge-x') return;
+    // || resizeType === 'edge-x'
+    
+      const scalePanel = containerRef.current?.interactionPanel?.scale;
+
+      // Calculate aspect ratio from initial scale values
+      const aspectRatio = scale[0] / scale[1]; // x/y ratio (0.2/0.05 = 4)
+      
+      // Use y as the primary dimension and calculate x proportionally
+      const newScaleY = scalePanel.y;
+      const newScaleX = newScaleY * aspectRatio;
+      
+      const rawScale: [number, number] = [newScaleX, newScaleY];
+      // const filteredScale = applyNoiseFilter(rawScale, scale);
+      
+      // Only update if the filtered scale is different from current scale
+      if (rawScale[0] !== scale[0] || rawScale[1] !== scale[1]) {
+        set({ 
+          scale: rawScale
+        });
+      }
+    
+  }, [size]);
+
+
+  // useEffect for scale x, this mainly handles the edge-x resizing by copying the scale x to the scale prop while not mainting aspect ratio, aslo handles when the text is wrapping and we got to update the y
+  useEffect(() => {
+    if (!isSelected || isEditing || resizeType === 'corner') return;
+
+    // || resizeType === 'edge-x'
+      const scalePanel = containerRef.current?.interactionPanel?.scale;
+      
+      console.log("scalePanel", scalePanel);
+      console.log("scale", scale);
+
+      // Use y as the primary dimension and calculate x proportionally
+      const newScaleY = scalePanel.y;
+      const newScaleX = scalePanel.x
+      
+      console.log("newScaleX", newScaleX);
+      console.log("newScaleY", newScaleY);
+
+      const rawScale: [number, number] = [newScaleX, newScaleY];
+      // const filteredScale = applyNoiseFilter(rawScale, scale);
+      
+      // Only update if the filtered scale is different from current scale
+      if (rawScale[0] !== scale[0] || rawScale[1] !== scale[1]) {
+        set({ 
+          scale: rawScale
+        });
+      }
+    
+  }, [containerRef.current?.interactionPanel?.scale.x]);
+
 
   // Handle clicks outside the text box to save
   useEffect(() => {
@@ -50,7 +137,6 @@ const TextBox = ({
       if (isEditing) {
         // Only trigger outside click if we didn't click inside the textbox
         if (!clickedInsideRef.current) {
-          console.log("clicked outside");
           setIsEditing(false);
         }
         // Reset the flag
@@ -70,7 +156,11 @@ const TextBox = ({
   // Handle keyboard events
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (!isEditing || !isSelected) return;
+      if (!isEditing || !isSelected) {
+        if (text.trim().length === 0) {
+          setText(initialText);
+        }
+      };
 
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
@@ -95,195 +185,135 @@ const TextBox = ({
     setText(value);
   };
 
-  const pixelSize = size * scale[1] * 5; // Convert to pixel size
-  const rootWidth = scale[0]; // Convert to uikit units (smaller)
-  const rootHeight = scale[1] * 2; // Convert to uikit units (smaller)
+  // Helper functions to determine props based on state
+  const getGroupProps = () => {
+    const baseProps = {
+      position,
+      rotation: new THREE.Euler(rotation[0], rotation[1], rotation[2]),
+      onPointerOver,
+      onPointerOut,
+      userData: { store, isDecal: true },
+    };
 
-  // Apply hover styling
-  const displayColor = color; // Keep original color, no hover color change
-  const borderColor = (isHovered || isSelected) && !isEditing ? "red" : color;
-  const borderWidth = (isHovered || isSelected) && !isEditing ? 0.1 : 0;
+    if (isSelected && !isEditing) {
+      return { ...baseProps, ...bind() };
+    }
+
+    if (isSelected && isEditing) {
+      return {
+        ...baseProps,
+        onClick: (e: any) => {
+          clickedInsideRef.current = true;
+          e.stopPropagation();
+        },
+        onPointerDown: (e: any) => {
+          clickedInsideRef.current = true;
+          e.stopPropagation();
+        },
+        onPointerUp: (e: any) => {
+          clickedInsideRef.current = true;
+          e.stopPropagation();
+        },
+      };
+    }
+
+    return baseProps;
+  };
+
+  const getRootProps = () => {
+    const rootWidth = scale[0];
+    const rootHeight = scale[1] * 2;
+
+    return {
+      pixelSize : 0.002,
+      sizeX: rootWidth,
+      // sizeY: rootHeight,
+      flexDirection: "column" as const,
+      alignItems: "center" as const,
+      justifyContent: "center" as const,
+      ...(isSelected && !isEditing ? bind() : {}),
+    };
+  };
+
+  const getContainerProps = () => {
+    const borderColor = (isHovered || isSelected) && !isEditing ? "red" : color;
+    const borderWidth = isSelected && !isEditing ? 0.1 : 0.01;
+
+    return {
+      ref: containerRef,
+      width: "100%" as const,
+      height: "auto" as const,
+      minWidth: 1,
+      minHeight: 1,
+      alignItems: "center" as const,
+      justifyContent: "center" as const,
+      borderColor,
+      borderWidth,
+    };
+  };
+
+  const getInputProps = () => {
+    const pixelSize = size * scale[1] * 5;
+    const displayColor = color;
+
+    // Different caret widths based on state
+    const caretWidth = isSelected && isEditing ? 0.5 : 0.01;
+
+    return {
+      ref: inputRef,
+      value: text,
+      onValueChange: handleInputChange,
+      multiline: true,
+      fontSize: pixelSize,
+      color: displayColor,
+      borderColor: "red",
+      lineHeight: 0,
+      borderWidth: 0.1,
+      caretWidth,
+      caretBorderWidth: 0.01,
+      backgroundOpacity: 0,
+      width: "100%" as const,
+      height: "100%" as const,
+    };
+  };
+
+  const getTextProps = () => {
+    const pixelSize = size;
+    const displayColor = color;
+    
+    // Use alignText for selected non-editing, center for others
+    const textAlign = alignText as "left" | "center" | "right";
+
+    return {
+      ref: textRef,
+      fontSize: pixelSize,
+      color: displayColor,
+      textAlign,
+      wordBreak: "break-all" as const,
+      width: '100%' as const,
+      height: '100%' as const,
+      opacity: 1,
+    };
+  };
+
+  const groupProps = getGroupProps();
+  const rootProps = getRootProps();
+  const containerProps = getContainerProps();
 
   return (
-    <>
-      {isSelected && !isEditing && (
-        <group
-          {...bind()}
-          position={position}
-          rotation={new THREE.Euler(rotation[0], rotation[1], rotation[2])}
-          onPointerOver={onPointerOver}
-          onPointerOut={onPointerOut}
-          userData={{ store, isDecal: true }}
-        >
-          <Root
-            {...bind()}
-            sizeX={rootWidth}
-            sizeY={rootHeight}
-            flexDirection="column"
-            alignItems="center"
-            justifyContent="center"
-          >
-            <Container
-              width="100%"
-              height="auto"
-              alignItems="center"
-              justifyContent="center"
-              borderColor={borderColor}
-              borderWidth={borderWidth}
-            >
-              {isEditing && isSelected ? (
-                <Input
-                  ref={inputRef}
-                  value={text}
-                  onValueChange={handleInputChange}
-                  multiline
-                  fontSize={pixelSize}
-                  color={displayColor}
-                  borderColor="red"
-                  borderWidth={0.1}
-                  backgroundOpacity={1}
-                  width="100%"
-                  height="100%"
-                />
-              ) : (
-                <Text
-                  fontSize={pixelSize}
-                  color={displayColor}
-                  textAlign="center"
-                  width="100%"
-                  height="100%"
-                  opacity={1}
-                  userData={{ store, isDecal: true }}
-                >
-                  {text}
-                </Text>
-              )}
-            </Container>
-          </Root>
-        </group>
-      )}
-      {isSelected && isEditing && (
-        <group
-          onClick={(e) => {
-            clickedInsideRef.current = true;
-            e.stopPropagation();
-          }}
-          onPointerDown={(e) => {
-            clickedInsideRef.current = true;
-            e.stopPropagation();
-          }}
-          onPointerUp={(e) => {
-            clickedInsideRef.current = true;
-            e.stopPropagation();
-          }}
-          position={position}
-          rotation={new THREE.Euler(rotation[0], rotation[1], rotation[2])}
-          onPointerOver={onPointerOver}
-          onPointerOut={onPointerOut}
-          userData={{ store, isDecal: true }}
-        >
-          <Root
-            sizeX={rootWidth}
-            sizeY={rootHeight}
-            flexDirection="column"
-            alignItems="center"
-            justifyContent="center"
-          >
-            <Container
-              width="100%"
-              height="auto"
-              alignItems="center"
-              justifyContent="center"
-              borderColor={borderColor}
-              borderWidth={borderWidth}
-            >
-              {isEditing && isSelected ? (
-                <Input
-                  ref={inputRef}
-                  value={text}
-                  onValueChange={handleInputChange}
-                  multiline
-                  fontSize={pixelSize}
-                  color={displayColor}
-                  borderColor="red"
-                  borderWidth={0.1}
-                  backgroundOpacity={1}
-                  width="100%"
-                  height="100%"
-                />
-              ) : (
-                <Text
-                  fontSize={pixelSize}
-                  color={displayColor}
-                  textAlign="center"
-                  width="100%"
-                  height="100%"
-                  opacity={1}
-                  userData={{ store, isDecal: true }}
-                >
-                  {text}
-                </Text>
-              )}
-            </Container>
-          </Root>
-        </group>
-      )}
-      {!isSelected && (
-        <group
-          position={position}
-          rotation={new THREE.Euler(rotation[0], rotation[1], rotation[2])}
-          onPointerOver={onPointerOver}
-          onPointerOut={onPointerOut}
-          userData={{ store, isDecal: true }}
-        >
-          <Root
-            sizeX={rootWidth}
-            sizeY={rootHeight}
-            flexDirection="column"
-            alignItems="center"
-            justifyContent="center"
-          >
-            <Container
-              width="100%"
-              height="auto"
-              alignItems="center"
-              justifyContent="center"
-              borderColor={borderColor}
-              borderWidth={borderWidth}
-            >
-              {isEditing && isSelected ? (
-                <Input
-                  ref={inputRef}
-                  value={text}
-                  onValueChange={handleInputChange}
-                  multiline
-                  fontSize={pixelSize}
-                  color={displayColor}
-                  backgroundColor="transparent"
-                  borderColor="red"
-                  borderWidth={2}
-                  backgroundOpacity={1}
-                  width="100%"
-                  height="100%"
-                />
-              ) : (
-                <Text
-                  fontSize={pixelSize}
-                  color={displayColor}
-                  textAlign="center"
-                  width="100%"
-                  height="100%"
-                  opacity={1}
-                  userData={{ store, isDecal: true }}
-                >
-                  {text}
-                </Text>
-              )}
-            </Container>
-          </Root>
-        </group>
-      )}
-    </>
+    <group {...groupProps}>
+      <Root ref={rootRef} {...rootProps}>
+        <Container {...containerProps}>
+          {isEditing && isSelected ? (
+            <Input {...getInputProps()} />
+          ) : (
+            <Text {...getTextProps()}>
+              {text}
+            </Text>
+          )}
+        </Container>
+      </Root>
+    </group>
   );
 };
 

@@ -4,7 +4,7 @@ import RotationHandler from "../Handler/RotationHandler";
 import TextBox from "@/components/edit/Decals/TextBox";
 import * as THREE from "three";
 import { useState, useEffect, useRef } from "react";
-import HandlerGroup from "../Handler/HandlerGroup";
+import TextHandlerGroup from "../Handler/TextHandlerGroup";
 import { button } from "leva";
 import { useSelect } from "@react-three/drei";
 import { useControlsDecals } from "@/components/edit/MultiLeva";
@@ -31,6 +31,11 @@ const TextDecal = ({
   onDelete,
 }: TextDecalProps) => {
   const [isEditing, setIsEditing] = useState(false);
+  const [hovered, setHover] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
+  const [resizeType, setResizeType] = useState<'corner' | 'edge-x' | 'edge-y' | null>(null);
+  const [isRotating, setIsRotating] = useState(false);
+  const [isMoving, setIsMoving] = useState(false);
 
   const levaConfig = {
     position: {
@@ -48,6 +53,10 @@ const TextDecal = ({
     "font family": {
       value: "San Serif",
     },
+    "Align Text": {
+      value: "left",
+      options: ["left", "center", "right"],
+    },
     rotation: { value: initialRotation, render: () => false },
     delete: button((get) => {
       onDelete(id);
@@ -60,19 +69,19 @@ const TextDecal = ({
   const [store, materialProps, set] = useControlsDecals(
     selectedUserDataStores,
     levaConfig,
-    ["scale", "rotation"] as any // Hide scale and rotation controls
+    ['rotation'] as any // Hide scale and rotation controls
   ) as [any, any, (props: any) => void];
 
   const isSelected = !!selectedUserDataStores.find((s) => s === store);
 
   const toggleEditing = async () => {
-    if (state.isMoving || state.isResizing || state.isRotating || !isSelected)
+    if (isMoving || isResizing || isRotating || !isSelected)
       return;
     await new Promise((resolve) => setTimeout(resolve, 300));
     setIsEditing(!isEditing);
   };
 
-  const { state, bind, handlers } = useDecalDrag({
+  const { bind, handleRotationUpdate, handleUpdate } = useDecalDrag({
     id,
     center,
     boundingBox,
@@ -81,19 +90,39 @@ const TextDecal = ({
     onDelete,
     materialProps,
     disableDrag: isEditing,
-    onUpdate: set,
+    onUpdate: (props: any) => set(props),
     onPointerDown: toggleEditing,
-    disableKeyboardDelete: true, // TextDecal handles its own keyboard events
+    disableKeyboardDelete: true,
+    isResizing,
+    isRotating,
+    setIsMoving,
   });
 
+  // Handler for TextHandlerGroup that supports font size changes
+  const handleTextUpdate = (newProps: {
+    scale?: [number, number];
+    position?: [number, number, number];
+    size?: number;
+  }) => {
+    set(newProps);
+  };
+
+  // Custom setIsResizing function that also handles resize type
+  const setIsResizingWithType = (resizing: boolean, type: 'corner' | 'edge-x' | 'edge-y' | null = null) => {
+    setIsResizing(resizing);
+    setResizeType(resizing ? type : null);
+  };
+
   useEffect(() => {
-    if (state.isMoving) {
+    if (isMoving) {
       setIsEditing(false);
     }
-  }, [state.isMoving, isEditing]);
+  }, [isMoving, isEditing]);
 
   // Override keyboard delete to not work while editing
   useEffect(() => {
+    if (!isSelected) setIsEditing(false);
+
     const handleKeyDown = (event: KeyboardEvent) => {
       if (
         !isEditing &&
@@ -131,17 +160,24 @@ const TextDecal = ({
         color={materialProps.color}
         size={materialProps.size}
         fontFamily={materialProps["font family"]}
+        alignText={materialProps["Align Text"]}
         isSelected={isSelected}
         isEditing={isEditing}
-        isHovered={state.hovered}
-        onPointerOver={handlers.handlePointerOver}
-        onPointerOut={() => handlers.setHover(false)}
+        set={handleTextUpdate}
+        isResizing={isResizing}
+        resizeType={resizeType}
+        isHovered={hovered}
+        onPointerOver={(e: any) => {
+          e.stopPropagation();
+          setHover(true);
+        }}
+        onPointerOut={() => setHover(false)}
       />
 
       {/* Handler group for resize handles */}
-      {isSelected && (
+      {isSelected && !isEditing && (
         <>
-          <HandlerGroup
+          <TextHandlerGroup
             scale={materialProps.scale}
             position={[
               materialProps.position[0],
@@ -149,10 +185,11 @@ const TextDecal = ({
               materialProps.position[2],
             ]}
             rotation={materialProps.rotation}
-            onUpdate={handlers.handleUpdate}
-            onHover={handlers.setHover}
-            setIsResizing={handlers.setIsResizing}
+            onUpdate={handleTextUpdate}
+            onHover={setHover}
+            setIsResizing={setIsResizingWithType}
             normal={normal}
+            currentSize={materialProps.size}
           />
           <RotationHandler
             position={[
@@ -163,9 +200,9 @@ const TextDecal = ({
             scale={materialProps.scale}
             rotation={materialProps.rotation}
             normal={normal}
-            onUpdate={handlers.handleRotationUpdate}
-            onHover={handlers.setHover}
-            setIsRotating={handlers.setIsRotating}
+            onUpdate={handleRotationUpdate}
+            onHover={setHover}
+            setIsRotating={setIsRotating}
           />
         </>
       )}

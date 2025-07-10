@@ -13,17 +13,15 @@ interface UseDecalDragProps {
   onDelete: (id: string) => void;
   materialProps: any;
   onUpdate: (props: any) => void;
+  disableDrag?: boolean;
   disableKeyboardDelete?: boolean;
   onPointerDown?: () => void;
+  isResizing?: boolean;
+  isRotating?: boolean;
+  setIsMoving?: (isMoving: boolean) => void;
 }
 
-interface DecalState {
-  hovered: boolean;
-  isResizing: boolean;
-  isRotating: boolean;
-  isSelected: boolean;
-  isMoving: boolean;
-}
+
 
 export const useDecalDrag = ({
   id,
@@ -37,17 +35,14 @@ export const useDecalDrag = ({
   disableDrag = false,
   disableKeyboardDelete = false,
   onPointerDown,
+  isResizing = false,
+  isRotating = false,
+  setIsMoving,
 }: UseDecalDragProps) => {
-  const [hovered, setHover] = useState(false);
-  const [isResizing, setIsResizing] = useState(false);
-  const [isRotating, setIsRotating] = useState(false);
-  const [isMoving, setIsMoving] = useState(false);
   const hasInitialized = useRef(false);
 
   // Get access to R3F's state, including camera and raycaster
   const { camera, raycaster } = useThree();
-
-  useCursor(hovered);
 
   // Reset initialization flag when key props change
   useEffect(() => {
@@ -95,7 +90,7 @@ export const useDecalDrag = ({
 
       const e = event as unknown as ThreeEvent<PointerEvent>;
 
-      setIsMoving(false);
+      setIsMoving?.(false);
       // Only proceed if actively dragging (mouse/pointer is down)
       if (!down) {
         onPointerDown?.();
@@ -128,7 +123,7 @@ export const useDecalDrag = ({
         return;
       }
 
-      setIsMoving(true);
+      setIsMoving?.(true);
 
       // On every subsequent drag event, raycast onto the plane
       const intersectionPoint = new THREE.Vector3();
@@ -211,11 +206,6 @@ export const useDecalDrag = ({
     };
   }, [id, onDelete, disableKeyboardDelete]);
 
-  const handlePointerOver = (e: any) => {
-    e.stopPropagation();
-    setHover(true);
-  };
-
   const handleRotationUpdate = (newRotation: [number, number, number]) => {
     onUpdate({ rotation: newRotation });
   };
@@ -227,24 +217,9 @@ export const useDecalDrag = ({
     onUpdate({ scale: newProps.scale, position: newProps.position });
   };
 
-  const state: DecalState = {
-    hovered,
-    isResizing,
-    isRotating,
-    isSelected: false, // This will be managed by the parent component
-    isMoving,
-  };
-
   return {
-    state,
     bind,
-    handlers: {
-      setHover,
-      setIsResizing,
-      setIsRotating,
-      handlePointerOver,
-      handleRotationUpdate,
-      handleUpdate,
-    },
+    handleRotationUpdate,
+    handleUpdate,
   };
 };

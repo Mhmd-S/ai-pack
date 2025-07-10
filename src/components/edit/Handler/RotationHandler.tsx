@@ -47,7 +47,7 @@ const RotationHandler = ({
 	}, [decalNormal]);
 
 	const handlerPosition = useMemo(() => {
-		const handleOffset = 0.15 + scale[1] / 2;
+		const handleOffset = 0.05 + scale[1] / 1.5;
 		const offset = upVector.clone().multiplyScalar(handleOffset);
 		
 		// Apply the full 3D rotation to the upVector to see how it's been rotated
