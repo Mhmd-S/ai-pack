@@ -159,20 +159,28 @@ const TextHandlerGroup = ({
       const sizeMultiplier = diagonalDistance / initialDiagonal;
       newSize = Math.max(4, initialSize * sizeMultiplier); // Minimum font size of 4
 
-      // Keep the scale the same for corners since we're changing font size
+      // Calculate the effective scale change due to font size change
+      const fontSizeRatio = newSize / initialSize;
+      const effectiveNewScale: [number, number] = [
+        initialScale.x * fontSizeRatio,
+        initialScale.y * fontSizeRatio
+      ];
+
+      // Keep the reported scale the same for corners since we're changing font size
       newScale = [initialScale.x, initialScale.y];
 
-      // Calculate center offset for position adjustment
+      // Calculate where the pivot point would be with the new effective scale
       const pivotNormalizedPos: [number, number] = [
         -handler.normalizedPosition[0],
         -handler.normalizedPosition[1],
       ];
       const newPivotLocalPos = getPointInLocalSpace(
         pivotNormalizedPos,
-        newScale
+        effectiveNewScale
       );
 
       // The offset is the change in the pivot's local position
+      // This ensures the pivot point stays fixed in world space
       centerOffset = new THREE.Vector3().subVectors(
         pivotPoint,
         newPivotLocalPos

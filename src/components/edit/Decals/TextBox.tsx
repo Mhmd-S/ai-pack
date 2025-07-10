@@ -105,16 +105,10 @@ const TextBox = ({
 
     // || resizeType === 'edge-x'
       const scalePanel = containerRef.current?.interactionPanel?.scale;
-      
-      console.log("scalePanel", scalePanel);
-      console.log("scale", scale);
-
+ 
       // Use y as the primary dimension and calculate x proportionally
       const newScaleY = scalePanel.y;
       const newScaleX = scalePanel.x
-      
-      console.log("newScaleX", newScaleX);
-      console.log("newScaleY", newScaleY);
 
       const rawScale: [number, number] = [newScaleX, newScaleY];
       // const filteredScale = applyNoiseFilter(rawScale, scale);
