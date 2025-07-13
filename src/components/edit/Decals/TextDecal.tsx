@@ -8,6 +8,7 @@ import TextHandlerGroup from "../Handler/TextHandlerGroup";
 import { button } from "leva";
 import { useSelect } from "@react-three/drei";
 import { useControlsDecals } from "@/components/edit/MultiLeva";
+import { useFonts, POPULAR_FONTS, WEIGHTS } from "@/hooks/use-fonts";
 
 interface TextDecalProps {
   id: string;
@@ -37,6 +38,25 @@ const TextDecal = ({
   const [isRotating, setIsRotating] = useState(false);
   const [isMoving, setIsMoving] = useState(false);
 
+  const { getAvailableFamilies } = useFonts();
+
+  // Create font options for Leva - convert kebab-case to title case for display
+  const fontOptions = getAvailableFamilies().reduce((acc, fontFamily) => {
+    const displayName = fontFamily
+      .split('-')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+    acc[displayName] = fontFamily;
+    return acc;
+  }, {} as Record<string, string>);
+
+  // Weight options for Leva
+  const weightOptions = {
+    'Light': 'light',
+    'Regular': 'regular', 
+    'Bold': 'bold'
+  };
+
   const levaConfig = {
     position: {
       value: [center.x, center.y, center.z],
@@ -51,7 +71,12 @@ const TextDecal = ({
       value: "#000000",
     },
     "font family": {
-      value: "San Serif",
+      value: "inconsolata",
+      options: fontOptions,
+    },
+    "font weight": {
+      value: "regular",
+      options: weightOptions,
     },
     "Align Text": {
       value: "left",
@@ -140,6 +165,9 @@ const TextDecal = ({
     };
   }, [isSelected, id, onDelete, isEditing]);
 
+  // Create the combined font key from family and weight
+  const combinedFontKey = `${materialProps["font family"]}-${materialProps["font weight"]}`;
+
   return (
     <>
       {/* Visual representation mesh */}
@@ -159,7 +187,7 @@ const TextDecal = ({
         initialText={text}
         color={materialProps.color}
         size={materialProps.size}
-        fontFamily={materialProps["font family"]}
+        fontFamily={combinedFontKey}
         alignText={materialProps["Align Text"]}
         isSelected={isSelected}
         isEditing={isEditing}

@@ -1,7 +1,14 @@
 import { useRef, useState, useEffect } from "react";
-import { Text, Input, Container, Root } from "@react-three/uikit";
+import {
+  Text,
+  Input,
+  Container,
+  Root,
+  FontFamilyProvider,
+} from "@react-three/uikit";
 import { ThreeElements } from "@react-three/fiber";
 import * as THREE from "three";
+import { useFonts } from "@/hooks/use-fonts";
 
 interface TextBoxProps {
   position: ThreeElements["mesh"]["position"];
@@ -22,7 +29,7 @@ interface TextBoxProps {
   store: any;
   set: (props: { scale?: [number, number]; size?: number }) => void;
   isResizing?: boolean;
-  resizeType?: 'corner' | 'edge-x' | 'edge-y' | null;
+  resizeType?: "corner" | "edge-x" | "edge-y" | null;
 }
 
 const TextBox = ({
@@ -53,76 +60,109 @@ const TextBox = ({
   const clickedInsideRef = useRef(false);
   const rootRef = useRef<any>(null);
 
+  const { fontProps } = useFonts();
+
+  // Split combined font key into family and weight
+  const parseFontKey = (fontKey: string) => {
+    const parts = fontKey.split("-");
+    if (parts.length >= 2) {
+      const weight = parts[parts.length - 1];
+      const family = parts.slice(0, -1).join("-");
+
+      // Validate that this is a valid weight
+      if (["light", "normal", "bold"].includes(weight)) {
+        return { family, weight };
+      }
+    }
+
+    // Fallback if parsing fails
+    return { family: "inconsolata", weight: "normal" };
+  };
+
+  const { family: fontFamilyName, weight: fontWeight } =
+    parseFontKey(fontFamily);
+
+  // Check if the font family exists in fontProps
+  const fontExists =
+    fontProps[fontFamilyName] && fontProps[fontFamilyName][fontWeight];
+
+  if (!fontExists) {
+    console.warn(`Font ${fontFamilyName} with weight ${fontWeight} not found`);
+  }
+
+  // Use fallback font family and weight if the requested one doesn't exist
+  const finalFontFamily = fontExists ? fontFamilyName : "inconsolata";
+  const finalFontWeight = fontExists ? fontWeight : "normal";
+
   // Console log the interactionPanel when textRef changes
   useEffect(() => {
     if (textRef.current && textRef.current.interactionPanel) {
       // Add userData to the interactionPanel
       textRef.current.interactionPanel.userData = { store, isDecal: true };
     }
-  }, []);
+  }, [isEditing]);
 
-  // not working
+  // not working - get this working
   useEffect(() => {
-    if (inputRef.current && inputRef?.current?.element?.style?.wordBreak !== "break-all") {
-      inputRef.current.element.style.wordBreak = "break-all";
-      inputRef.current.element.style.wordWrap = "break-word";
-      inputRef.current.element.style.overflowWrap = "break-word";
-      inputRef.current.element.style.whiteSpace = "normal";
+    if (inputRef?.current && inputRef?.current?.setStyle) {
+      inputRef.current.setStyle({
+        wordBreak: "break-all",
+        wordWrap: "break-word",
+        overflowWrap: "break-word",
+        whiteSpace: "normal",
+        hyphens: "none",
+        lineBreak: "anywhere",
+        textAlign: alignText as "left" | "center" | "right",
+      });
     }
-
-    console.log('inputRef.current', inputRef.current.element);
-  }, [isEditing, isSelected, inputRef.current, text]);
+  }, [isEditing, alignText]);
 
   // useEffect for font Size -> Scale. When the size changes, we need to update the scale, by hooking to the containerRef.interactionPanel.scale and copying the scale to the scale prop while mainting aspect ratio
   useEffect(() => {
-    if (!isSelected || isEditing || resizeType === 'edge-x') return;
+    if (!isSelected || isEditing || resizeType === "edge-x") return;
     // || resizeType === 'edge-x'
-    
-      const scalePanel = containerRef.current?.interactionPanel?.scale;
 
-      // Calculate aspect ratio from initial scale values
-      const aspectRatio = scale[0] / scale[1]; // x/y ratio (0.2/0.05 = 4)
-      
-      // Use y as the primary dimension and calculate x proportionally
-      const newScaleY = scalePanel.y;
-      const newScaleX = isResizing ? newScaleY * aspectRatio : scale[0];
-      
-      const rawScale: [number, number] = [newScaleX, newScaleY];
-      // const filteredScale = applyNoiseFilter(rawScale, scale);
-      
-      // Only update if the filtered scale is different from current scale
-      if (rawScale[0] !== scale[0] || rawScale[1] !== scale[1]) {
-        set({ 
-          scale: rawScale
-        });
-      }
-    
+    const scalePanel = containerRef.current?.interactionPanel?.scale;
+
+    // Calculate aspect ratio from initial scale values
+    const aspectRatio = scale[0] / scale[1]; // x/y ratio (0.2/0.05 = 4)
+
+    // Use y as the primary dimension and calculate x proportionally
+    const newScaleY = scalePanel.y;
+    const newScaleX = isResizing ? newScaleY * aspectRatio : scale[0];
+
+    const rawScale: [number, number] = [newScaleX, newScaleY];
+    // const filteredScale = applyNoiseFilter(rawScale, scale);
+
+    // Only update if the filtered scale is different from current scale
+    if (rawScale[0] !== scale[0] || rawScale[1] !== scale[1]) {
+      set({
+        scale: rawScale,
+      });
+    }
   }, [size]);
-
 
   // useEffect for scale x, this mainly handles the edge-x resizing by copying the scale x to the scale prop while not mainting aspect ratio, aslo handles when the text is wrapping and we got to update the y
   useEffect(() => {
-    if (!isSelected || isEditing || resizeType === 'corner') return;
+    if (!isSelected || isEditing || resizeType === "corner") return;
 
     // || resizeType === 'edge-x'
-      const scalePanel = containerRef.current?.interactionPanel?.scale;
- 
-      // Use y as the primary dimension and calculate x proportionally
-      const newScaleY = scalePanel.y;
-      const newScaleX = scalePanel.x
+    const scalePanel = containerRef.current?.interactionPanel?.scale;
 
-      const rawScale: [number, number] = [newScaleX, newScaleY];
-      // const filteredScale = applyNoiseFilter(rawScale, scale);
-      
-      // Only update if the filtered scale is different from current scale
-      if (rawScale[0] !== scale[0] || rawScale[1] !== scale[1]) {
-        set({ 
-          scale: rawScale
-        });
-      }
-    
+    // Use y as the primary dimension and calculate x proportionally
+    const newScaleY = scalePanel.y;
+    const newScaleX = scalePanel.x;
+
+    const rawScale: [number, number] = [newScaleX, newScaleY];
+    // const filteredScale = applyNoiseFilter(rawScale, scale);
+
+    // Only update if the filtered scale is different from current scale
+    if (rawScale[0] !== scale[0] || rawScale[1] !== scale[1]) {
+      set({
+        scale: rawScale,
+      });
+    }
   }, [containerRef.current?.interactionPanel?.scale.x]);
-
 
   // Handle clicks outside the text box to save
   useEffect(() => {
@@ -155,7 +195,7 @@ const TextBox = ({
         if (text.trim().length === 0) {
           setText(initialText);
         }
-      };
+      }
 
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
@@ -219,7 +259,7 @@ const TextBox = ({
     const rootWidth = scale[0];
 
     return {
-      pixelSize : 0.002,
+      pixelSize: 0.002,
       sizeX: rootWidth,
       // sizeY: rootHeight,
       flexDirection: "column" as const,
@@ -230,7 +270,7 @@ const TextBox = ({
   };
 
   const getContainerProps = () => {
-    const borderColor = (isHovered || isSelected) ? "red" : color;
+    const borderColor = isHovered || isSelected ? "red" : color;
     const borderWidth = isSelected ? 0.4 : 0;
 
     return {
@@ -238,7 +278,7 @@ const TextBox = ({
       width: "100%" as const,
       height: "auto" as const,
       minWidth: 1,
-      minHeight: 1,
+      minHeight: 5,
       alignItems: "center" as const,
       justifyContent: "center" as const,
       borderColor,
@@ -260,6 +300,8 @@ const TextBox = ({
       multiline: true,
       fontSize: pixelSize,
       color: displayColor,
+      fontFamily: finalFontFamily,
+      fontWeight: finalFontWeight as any,
       borderColor: "red",
       lineHeight: pixelSize,
       borderWidth: 0.1,
@@ -274,7 +316,7 @@ const TextBox = ({
   const getTextProps = () => {
     const pixelSize = size;
     const displayColor = color;
-    
+
     // Use alignText for selected non-editing, center for others
     const textAlign = alignText as "left" | "center" | "right";
 
@@ -283,10 +325,12 @@ const TextBox = ({
       fontSize: pixelSize,
       // lineHeight: pixelSize,
       color: displayColor,
+      fontFamily: finalFontFamily,
+      fontWeight: finalFontWeight as any,
       textAlign,
       wordBreak: "break-all" as const,
-      width: '100%' as const,
-      height: 'auto',
+      width: "100%" as const,
+      height: "auto",
       opacity: 1,
     };
   };
@@ -298,15 +342,15 @@ const TextBox = ({
   return (
     <group {...groupProps}>
       <Root ref={rootRef} {...rootProps}>
-        <Container {...containerProps}>
-          {isEditing && isSelected ? (
-            <Input {...getInputProps()} />
-          ) : (
-            <Text {...getTextProps()}>
-              {text}
-            </Text>
-          )}
-        </Container>
+        <FontFamilyProvider {...fontProps}>
+          <Container {...containerProps}>
+            {isEditing && isSelected ? (
+              <Input {...getInputProps()} />
+            ) : (
+              <Text {...getTextProps()}>{text}</Text>
+            )}
+          </Container>
+        </FontFamilyProvider>
       </Root>
     </group>
   );
