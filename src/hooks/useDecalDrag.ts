@@ -81,6 +81,51 @@ export const useDecalDrag = ({
   const dragStartPoint = useRef(new THREE.Vector3());
   const dragOffset = useRef(new THREE.Vector3());
 
+  // Helper function to calculate effective dimensions after rotation
+  const getEffectiveDimensions = (scale: [number, number], rotation: [number, number, number]) => {
+    const [width, height] = scale;
+    const [rx, ry, rz] = rotation;
+
+    // Create a box with the original dimensions
+    const originalBox = new THREE.Box3().setFromCenterAndSize(
+      new THREE.Vector3(0, 0, 0),
+      new THREE.Vector3(width, height, 0)
+    );
+
+    // Apply rotation to the box
+    const rotationMatrix = new THREE.Matrix4().makeRotationFromEuler(
+      new THREE.Euler(rx, ry, rz)
+    );
+
+    // Get the 8 corners of the box
+    const corners = [
+      new THREE.Vector3(originalBox.min.x, originalBox.min.y, originalBox.min.z),
+      new THREE.Vector3(originalBox.max.x, originalBox.min.y, originalBox.min.z),
+      new THREE.Vector3(originalBox.min.x, originalBox.max.y, originalBox.min.z),
+      new THREE.Vector3(originalBox.max.x, originalBox.max.y, originalBox.min.z),
+      new THREE.Vector3(originalBox.min.x, originalBox.min.y, originalBox.max.z),
+      new THREE.Vector3(originalBox.max.x, originalBox.min.y, originalBox.max.z),
+      new THREE.Vector3(originalBox.min.x, originalBox.max.y, originalBox.max.z),
+      new THREE.Vector3(originalBox.max.x, originalBox.max.y, originalBox.max.z),
+    ];
+
+    // Transform all corners
+    const transformedCorners = corners.map(corner => 
+      corner.applyMatrix4(rotationMatrix)
+    );
+
+    // Calculate the new bounding box
+    const rotatedBox = new THREE.Box3().setFromPoints(transformedCorners);
+    const size = new THREE.Vector3();
+    rotatedBox.getSize(size);
+
+    return {
+      halfWidth: size.x / 2,
+      halfHeight: size.y / 2,
+      halfDepth: size.z / 2,
+    };
+  };
+
   const bind = useDrag(
     ({ event, down, first }) => {
 
@@ -132,13 +177,16 @@ export const useDecalDrag = ({
       // Apply the offset to maintain relative position
       intersectionPoint.add(dragOffset.current);
 
-      // Calculate half extents of the decal based on current scale
+      // Calculate effective dimensions after rotation
       const currentScale = materialProps.scale || [1, 1];
-      const halfWidth = currentScale[0] / 2;
-      const halfHeight = currentScale[1] / 2;
+      const currentRotation = materialProps.rotation || [0, 0, 0];
+      const { halfWidth, halfHeight, halfDepth } = getEffectiveDimensions(
+        currentScale,
+        currentRotation
+      );
 
       // Clamp the position to stay within parent geometry bounds
-      // considering the decal's dimensions
+      // considering the decal's effective dimensions after rotation
       const size = new THREE.Vector3();
       boundingBox.getSize(size);
 
@@ -163,8 +211,8 @@ export const useDecalDrag = ({
           Math.min(boundingBox.max.x - halfWidth, intersectionPoint.x)
         );
         const clampedZ = Math.max(
-          boundingBox.min.z + halfHeight,
-          Math.min(boundingBox.max.z - halfHeight, intersectionPoint.z)
+          boundingBox.min.z + halfDepth,
+          Math.min(boundingBox.max.z - halfDepth, intersectionPoint.z)
         );
         newPosition = [clampedX, materialProps.position[1], clampedZ];
       } else {
@@ -174,8 +222,8 @@ export const useDecalDrag = ({
           Math.min(boundingBox.max.y - halfHeight, intersectionPoint.y)
         );
         const clampedZ = Math.max(
-          boundingBox.min.z + halfHeight,
-          Math.min(boundingBox.max.z - halfHeight, intersectionPoint.z)
+          boundingBox.min.z + halfDepth,
+          Math.min(boundingBox.max.z - halfDepth, intersectionPoint.z)
         );
         newPosition = [materialProps.position[0], clampedY, clampedZ];
       }

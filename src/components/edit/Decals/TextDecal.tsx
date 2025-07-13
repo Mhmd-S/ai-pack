@@ -3,12 +3,12 @@ import RotationHandler from "../Handler/RotationHandler";
 
 import TextBox from "@/components/edit/Decals/TextBox";
 import * as THREE from "three";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import TextHandlerGroup from "../Handler/TextHandlerGroup";
 import { button } from "leva";
 import { useSelect } from "@react-three/drei";
 import { useControlsDecals } from "@/components/edit/MultiLeva";
-import { useFonts, POPULAR_FONTS, WEIGHTS } from "@/hooks/use-fonts";
+import { useFonts } from "@/hooks/use-fonts";
 
 interface TextDecalProps {
   id: string;
@@ -106,7 +106,7 @@ const TextDecal = ({
     setIsEditing(!isEditing);
   };
 
-  const { bind, handleRotationUpdate, handleUpdate } = useDecalDrag({
+  const { bind, handleRotationUpdate } = useDecalDrag({
     id,
     center,
     boundingBox,
