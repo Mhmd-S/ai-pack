@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useMemo } from "react";
 import {
   Text,
   Input,
@@ -102,7 +102,6 @@ const TextBox = ({
     }
   }, [isEditing]);
 
-  // not working - get this working
   useEffect(() => {
     if (inputRef?.current && inputRef?.current?.setStyle) {
       inputRef.current.setStyle({
@@ -117,22 +116,20 @@ const TextBox = ({
     }
   }, [isEditing, alignText]);
 
-  // useEffect for font Size -> Scale. When the size changes, we need to update the scale, by hooking to the containerRef.interactionPanel.scale and copying the scale to the scale prop while mainting aspect ratio
+  // useEffect for font Size -> Scale. When the size changes, we need to update the scale
   useEffect(() => {
-    if (!isSelected || isEditing || resizeType === "edge-x") return;
-    // || resizeType === 'edge-x'
+    if (!isSelected || isEditing || resizeType === "edge-x" || resizeType === "corner") return;
 
     const scalePanel = containerRef.current?.interactionPanel?.scale;
 
     // Calculate aspect ratio from initial scale values
-    const aspectRatio = scale[0] / scale[1]; // x/y ratio (0.2/0.05 = 4)
+    const aspectRatio = scale[0] / scale[1];
 
     // Use y as the primary dimension and calculate x proportionally
     const newScaleY = scalePanel.y;
     const newScaleX = isResizing ? newScaleY * aspectRatio : scale[0];
 
     const rawScale: [number, number] = [newScaleX, newScaleY];
-    // const filteredScale = applyNoiseFilter(rawScale, scale);
 
     // Only update if the filtered scale is different from current scale
     if (rawScale[0] !== scale[0] || rawScale[1] !== scale[1]) {
@@ -146,7 +143,6 @@ const TextBox = ({
   useEffect(() => {
     if (!isSelected || isEditing || resizeType === "corner") return;
 
-    // || resizeType === 'edge-x'
     const scalePanel = containerRef.current?.interactionPanel?.scale;
 
     // Use y as the primary dimension and calculate x proportionally
@@ -264,7 +260,7 @@ const TextBox = ({
       // sizeY: rootHeight,
       flexDirection: "column" as const,
       alignItems: "center" as const,
-      justifyContent: "center" as const,
+      justifyContent: "flex-start" as const,
       ...(isSelected && !isEditing ? bind() : {}),
     };
   };
@@ -278,9 +274,10 @@ const TextBox = ({
       width: "100%" as const,
       height: "auto" as const,
       minWidth: 1,
-      minHeight: 5,
+      minHeight: 1,
+      flexDirection: "column" as const,
       alignItems: "center" as const,
-      justifyContent: "center" as const,
+      justifyContent: "flex-start" as const,
       borderColor,
       borderWidth,
     };
@@ -302,14 +299,11 @@ const TextBox = ({
       color: displayColor,
       fontFamily: finalFontFamily,
       fontWeight: finalFontWeight as any,
-      borderColor: "red",
       lineHeight: pixelSize,
-      borderWidth: 0.1,
       caretWidth,
-      caretBorderWidth: 0.01,
       backgroundOpacity: 0,
       width: "100%" as const,
-      height: "auto",
+      height: "auto" as const,
     };
   };
 
@@ -323,14 +317,13 @@ const TextBox = ({
     return {
       ref: textRef,
       fontSize: pixelSize,
-      // lineHeight: pixelSize,
       color: displayColor,
       fontFamily: finalFontFamily,
       fontWeight: finalFontWeight as any,
       textAlign,
       wordBreak: "break-all" as const,
       width: "100%" as const,
-      height: "auto",
+      height: "auto" as const,
       opacity: 1,
     };
   };
@@ -342,15 +335,15 @@ const TextBox = ({
   return (
     <group {...groupProps}>
       <Root ref={rootRef} {...rootProps}>
-        <FontFamilyProvider {...fontProps}>
-          <Container {...containerProps}>
+        <Container {...containerProps}>
+          <FontFamilyProvider {...fontProps}>
             {isEditing && isSelected ? (
               <Input {...getInputProps()} />
             ) : (
               <Text {...getTextProps()}>{text}</Text>
             )}
-          </Container>
-        </FontFamilyProvider>
+          </FontFamilyProvider>
+        </Container>
       </Root>
     </group>
   );

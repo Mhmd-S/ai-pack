@@ -134,7 +134,7 @@ const Handler = ({
       onPointerOver={handlePointerOver}
       onPointerOut={handlePointerOut}
     >
-			<Circle args={[0.02, 24]}>
+			<Circle args={[0.01, 24]}>
 				<meshBasicMaterial
 					color="#000000"
 					transparent

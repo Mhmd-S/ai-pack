@@ -130,7 +130,6 @@ const TextHandlerGroup = ({
       initialSize,
     } = dragInfo;
 
-    // CHANGED: Transform world-space movement vector into the group's local space
     const localMovement = new THREE.Vector3(
       movement.x,
       movement.y,
@@ -141,7 +140,6 @@ const TextHandlerGroup = ({
       .copy(initialHandlePosition)
       .add(localMovement);
 
-    // From here, the logic is different for corner vs edge handlers
     const newWidth = Math.abs(currentHandlePosition.x - pivotPoint.x);
     const newHeight = Math.abs(currentHandlePosition.y - pivotPoint.y);
 
@@ -157,22 +155,24 @@ const TextHandlerGroup = ({
       );
       
       const sizeMultiplier = diagonalDistance / initialDiagonal;
-      newSize = Math.max(4, initialSize * sizeMultiplier); // Minimum font size of 4
+      newSize = Math.max(9, initialSize * sizeMultiplier);
 
       // Calculate the effective scale change due to font size change
       const fontSizeRatio = newSize / initialSize;
-      
-      // Keep the reported scale the same for corners since we're changing font size
-      newScale = [initialScale.x, initialScale.y];
 
-      // To keep the pivot fixed in world space, we need to calculate how much 
-      // the center should move when the effective size changes
+      // Calculate expected new scale synchronously
+      // The scale should change proportionally to font size for corner resizing
+      const aspectRatio = initialScale.x / initialScale.y;
+      const newScaleY = initialScale.y * fontSizeRatio;
+      const newScaleX = newScaleY * aspectRatio;
+      newScale = [newScaleX, newScaleY];
+
+      // Adjust position calculation to use the new scale instead of font size ratio
       const pivotNormalizedPos: [number, number] = [
         -handler.normalizedPosition[0],
         -handler.normalizedPosition[1],
       ];
       
-      // The pivot offset from center scales with the font size change
       const initialPivotOffset = new THREE.Vector3(
         initialScale.x * pivotNormalizedPos[0],
         initialScale.y * pivotNormalizedPos[1],
@@ -180,13 +180,11 @@ const TextHandlerGroup = ({
       );
       
       const newPivotOffset = new THREE.Vector3(
-        initialScale.x * fontSizeRatio * pivotNormalizedPos[0],
-        initialScale.y * fontSizeRatio * pivotNormalizedPos[1],
+        newScaleX * pivotNormalizedPos[0],
+        newScaleY * pivotNormalizedPos[1],
         0
       );
       
-      // The center needs to move by the difference in pivot offsets
-      // to keep the pivot point fixed in world space
       centerOffset = new THREE.Vector3().subVectors(
         initialPivotOffset,
         newPivotOffset
@@ -220,12 +218,14 @@ const TextHandlerGroup = ({
     // Update with appropriate properties
     const updateProps: any = { position: newPosition };
     
-    if (newScale && handler.type === "edge-x") {
-      updateProps.scale = [Math.max(0.01, newScale[0]), scale[1]];
-    }
-    
-    if (newSize !== undefined) {
-      updateProps.size = newSize;
+    if (newScale) {
+      if (handler.type === "corner") {
+        // For corner resizing, update both size and scale synchronously
+        updateProps.scale = [Math.max(0.01, newScale[0]), Math.max(0.01, newScale[1])];
+        updateProps.size = newSize;
+      } else if (handler.type === "edge-x") {
+        updateProps.scale = [Math.max(0.01, newScale[0]), scale[1]];
+      }
     }
 
     onUpdate(updateProps);

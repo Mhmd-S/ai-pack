@@ -62,7 +62,7 @@ const TextDecal = ({
       value: [center.x, center.y, center.z],
     },
     scale: {
-      value: [0.2, 0.05],
+      value: [0.15, 0.04],
     },
     size: {
       value: 16,
@@ -71,7 +71,7 @@ const TextDecal = ({
       value: "#000000",
     },
     "font family": {
-      value: "inconsolata",
+      value: "jost",
       options: fontOptions,
     },
     "font weight": {
@@ -79,7 +79,7 @@ const TextDecal = ({
       options: weightOptions,
     },
     "Align Text": {
-      value: "left",
+      value: "center",
       options: ["left", "center", "right"],
     },
     rotation: { value: initialRotation, render: () => false },
@@ -94,7 +94,7 @@ const TextDecal = ({
   const [store, materialProps, set] = useControlsDecals(
     selectedUserDataStores,
     levaConfig,
-    [] as any // Hide scale and rotation controls
+    ["position", "scale", "rotation"] as any // Hide scale and rotation controls
   ) as [any, any, (props: any) => void];
 
   const isSelected = !!selectedUserDataStores.find((s) => s === store);
@@ -191,7 +191,7 @@ const TextDecal = ({
         alignText={materialProps["Align Text"]}
         isSelected={isSelected}
         isEditing={isEditing}
-        set={handleTextUpdate}
+        set={set}
         isResizing={isResizing}
         resizeType={resizeType}
         isHovered={hovered}
