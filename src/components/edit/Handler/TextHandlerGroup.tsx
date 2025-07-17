@@ -20,7 +20,10 @@ interface TextHandlerGroupProps {
     size?: number;
   }) => void;
   onHover: (hovered: boolean) => void;
-  setIsResizing: (isResizing: boolean, resizeType: 'corner' | 'edge-x' | 'edge-y' | null) => void;
+  setIsResizing: (
+    isResizing: boolean,
+    resizeType: "corner" | "edge-x" | "edge-y" | null
+  ) => void;
   currentSize: number;
 }
 
@@ -78,7 +81,6 @@ const TextHandlerGroup = ({
     initialPosition: new THREE.Vector3(),
     initialScale: new THREE.Vector2(),
     initialHandlePosition: new THREE.Vector3(),
-    inverseRotationMatrix: new THREE.Matrix4(),
     initialSize: 0,
   }).current;
 
@@ -112,12 +114,6 @@ const TextHandlerGroup = ({
       handler.normalizedPosition,
       scale
     );
-
-    // CHANGED: Get the world rotation and invert it to transform movement into local space
-    const rotationMatrix = new THREE.Matrix4().makeRotationFromEuler(
-      new THREE.Euler(rotation[0], rotation[1], rotation[2])
-    );
-    dragInfo.inverseRotationMatrix.copy(rotationMatrix).invert();
   };
 
   const handleDrag = (handler: HandlerConfig, movement: THREE.Vector2) => {
@@ -126,15 +122,38 @@ const TextHandlerGroup = ({
       initialHandlePosition,
       initialScale,
       initialPosition,
-      inverseRotationMatrix,
       initialSize,
     } = dragInfo;
 
-    const localMovement = new THREE.Vector3(
-      movement.x,
-      movement.y,
-      0
-    ).applyMatrix4(inverseRotationMatrix);
+    // Check if any rotation is approximately π (3.14)
+    const isNearPi = (value: number) =>
+      Math.abs(Math.abs(value) - Math.PI) < 0.1;
+    const hasNearPiRotation =
+      isNearPi(rotation[0]) || isNearPi(rotation[1]) || isNearPi(rotation[2]);
+
+    let localMovement: THREE.Vector3;
+
+    // Sometimes the faces are rotated 180 degrees due to how the model was designed, so we need to invert the movement
+    if (hasNearPiRotation) {
+      // Create movement vector with inverted axes for rotations near π
+      const invertedMovement = new THREE.Vector3(
+        isNearPi(rotation[0]) ? movement.x : -movement.x,
+        isNearPi(rotation[1]) ? movement.y : -movement.y,
+        isNearPi(rotation[2]) ? -0 : 0
+      );
+
+      // Apply rotation matrix
+      localMovement = invertedMovement.applyMatrix4(
+        new THREE.Matrix4()
+          .makeRotationFromEuler(
+            new THREE.Euler(rotation[0], rotation[1], rotation[2])
+          )
+          .invert()
+      );
+    } else {
+      // Don't apply rotation matrix
+      localMovement = new THREE.Vector3(movement.x, movement.y, 0);
+    }
 
     const currentHandlePosition = new THREE.Vector3()
       .copy(initialHandlePosition)
@@ -149,11 +168,13 @@ const TextHandlerGroup = ({
 
     if (handler.type === "corner") {
       // For corner handlers: change font size based on diagonal movement
-      const diagonalDistance = Math.sqrt(newWidth * newWidth + newHeight * newHeight);
+      const diagonalDistance = Math.sqrt(
+        newWidth * newWidth + newHeight * newHeight
+      );
       const initialDiagonal = Math.sqrt(
         initialScale.x * initialScale.x + initialScale.y * initialScale.y
       );
-      
+
       const sizeMultiplier = diagonalDistance / initialDiagonal;
       newSize = Math.max(9, initialSize * sizeMultiplier);
 
@@ -172,19 +193,19 @@ const TextHandlerGroup = ({
         -handler.normalizedPosition[0],
         -handler.normalizedPosition[1],
       ];
-      
+
       const initialPivotOffset = new THREE.Vector3(
         initialScale.x * pivotNormalizedPos[0],
         initialScale.y * pivotNormalizedPos[1],
         0
       );
-      
+
       const newPivotOffset = new THREE.Vector3(
         newScaleX * pivotNormalizedPos[0],
         newScaleY * pivotNormalizedPos[1],
         0
       );
-      
+
       centerOffset = new THREE.Vector3().subVectors(
         initialPivotOffset,
         newPivotOffset
@@ -217,11 +238,14 @@ const TextHandlerGroup = ({
 
     // Update with appropriate properties
     const updateProps: any = { position: newPosition };
-    
+
     if (newScale) {
       if (handler.type === "corner") {
         // For corner resizing, update both size and scale synchronously
-        updateProps.scale = [Math.max(0.01, newScale[0]), Math.max(0.01, newScale[1])];
+        updateProps.scale = [
+          Math.max(0.01, newScale[0]),
+          Math.max(0.01, newScale[1]),
+        ];
         updateProps.size = newSize;
       } else if (handler.type === "edge-x") {
         updateProps.scale = [Math.max(0.01, newScale[0]), scale[1]];
@@ -251,6 +275,7 @@ const TextHandlerGroup = ({
             position={getPointInLocalSpace(handler.normalizedPosition, scale)}
             cursor={handler.cursor}
             rotation={rotation}
+            normal={normal}
             scale={visualScale}
             onHover={onHover}
             onDragStart={() => handleDragStart(handler)}
@@ -263,4 +288,4 @@ const TextHandlerGroup = ({
   );
 };
 
-export default TextHandlerGroup; 
+export default TextHandlerGroup;

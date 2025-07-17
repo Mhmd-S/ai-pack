@@ -68,9 +68,9 @@ const OBJModelEdit: React.FC<OBJModelEditProps> = ({
 					enableRotate={!locked}
 				/>
 
-				{/* <GizmoHelper alignment="bottom-right" margin={[100, 100]}>
+				<GizmoHelper alignment="bottom-right" margin={[100, 100]}>
 					<GizmoViewport labelColor="white" axisHeadScale={1} />
-				</GizmoHelper> */}
+				</GizmoHelper>
 
 				<Grid
 					position={[0, 0, 0]} // Adjust position as needed

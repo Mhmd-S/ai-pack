@@ -1,12 +1,13 @@
-import React, { useRef, useCallback, useState, useEffect } from 'react';
-import { useDrag } from '@use-gesture/react';
-import * as THREE from 'three';
-import { useThree } from '@react-three/fiber';
-import { Billboard, Circle, useCursor } from '@react-three/drei';
+import React, { useRef, useCallback, useState, useEffect } from "react";
+import { useDrag } from "@use-gesture/react";
+import * as THREE from "three";
+import { useThree } from "@react-three/fiber";
+import { Billboard, Circle, useCursor } from "@react-three/drei";
 
 interface HandlerProps {
   position: THREE.Vector3;
   cursor: string;
+  normal: THREE.Vector3;
   scale: [number, number, number];
   onDragStart: () => void;
   rotation: [number, number, number];
@@ -23,6 +24,7 @@ interface HandlerProps {
 const Handler = ({
   position,
   cursor,
+  normal,
   scale,
   rotation,
   onDragStart,
@@ -30,7 +32,7 @@ const Handler = ({
   onDragEnd,
   onHover,
 }: HandlerProps) => {
-  const { camera, raycaster, size } = useThree();
+  const { camera, raycaster } = useThree();
   // const [relativeQ, setRelativeQ] = useState<THREE.Quaternion>(new THREE.Quaternion());
   // const [currentRotation, setCurrentRotation] = useState<THREE.Euler>(new THREE.Euler());
 
@@ -41,91 +43,80 @@ const Handler = ({
     initialPoint: new THREE.Vector3(),
   }).current;
 
-  const handlePointerOver = useCallback((e: any) => {
-    e.stopPropagation();
-    document.body.style.cursor = cursor;
-    onHover(true);
-  }, [onHover, cursor]);
+  const handlePointerOver = useCallback(
+    (e: any) => {
+      e.stopPropagation();
+      document.body.style.cursor = cursor;
+      onHover(true);
+    },
+    [onHover, cursor]
+  );
 
   const handlePointerOut = useCallback(() => {
     if (document.body.style.cursor === cursor) {
-      document.body.style.cursor = 'auto';
+      document.body.style.cursor = "auto";
     }
     onHover(false);
   }, [onHover, cursor]);
 
-  // const relativeQuaternion = (rotation: [number, number, number]) => {
-  //   const parentQuaternion = new THREE.Quaternion();
-  //   parentQuaternion.setFromEuler(new THREE.Euler(rotation[0], rotation[1], rotation[2]));
+  const bind = useDrag((state) => {
+    const {
+      active,
+      first,
+      last,
+      xy: [px, py],
+      event,
+    } = state;
 
-  //   const childQuaternion = new THREE.Quaternion();
-  //   childQuaternion.setFromEuler(new THREE.Euler(0,0,0));
+    event.stopPropagation();
 
-  //   const relativeQ = parentQuaternion.clone().premultiply(childQuaternion);
-  
-  //   return relativeQ;
-  // }
-
-  // useEffect(() => {
-  //   setRelativeQ(relativeQuaternion(rotation));
-
-  //   const currentQ = new THREE.Quaternion();
-  //   currentQ.setFromEuler(new THREE.Euler(rotation[0], rotation[1], rotation[2]));
-
-  //   const childQ = currentQ.clone().premultiply(relativeQ);
-  //   setCurrentRotation(new THREE.Euler().setFromQuaternion(childQ));
-  // }, []);
-
-  // useEffect(() => {
-  //   const currentQ = new THREE.Quaternion();
-  //   currentQ.setFromEuler(new THREE.Euler(rotation[0], rotation[1], rotation[2]));
-
-  //   const childQ = currentQ.clone().premultiply(relativeQ);
-  //   setCurrentRotation(new THREE.Euler().setFromQuaternion(childQ));
-  // }, [rotation]);
-
-  const bind = useDrag(
-    (state) => {
-      const { active, first, last, xy: [px, py], event } = state;
-
-      event.stopPropagation();
-
-      const ndc = new THREE.Vector2(
-        (px / size.width) * 2 - 1,
-        -(py / size.height) * 2 + 1
+    if (first) {
+      onDragStart();
+      dragState.plane.setFromNormalAndCoplanarPoint(
+        camera.getWorldDirection(new THREE.Vector3()),
+        position
       );
+      raycaster.ray.intersectPlane(dragState.plane, dragState.initialPoint);
+    }
 
-      raycaster.setFromCamera(ndc, camera);
+    if (active) {
+      const currentPoint = new THREE.Vector3();
 
-      if (first) {
-        onDragStart();
-        dragState.plane.setFromNormalAndCoplanarPoint(
-          camera.getWorldDirection(new THREE.Vector3()),
-          position
-        );
-        raycaster.ray.intersectPlane(dragState.plane, dragState.initialPoint);
-      }
+      if (raycaster.ray.intersectPlane(dragState.plane, currentPoint)) {
+        // Calculate the 3D movement vector
+        const movement3D = new THREE.Vector3()
+          .copy(currentPoint)
+          .sub(dragState.initialPoint);
 
-      if (active) {
-        const currentPoint = new THREE.Vector3();
-        if (raycaster.ray.intersectPlane(dragState.plane, currentPoint)) {
-          const movement = new THREE.Vector2(
-            currentPoint.x - dragState.initialPoint.x,
-            currentPoint.y - dragState.initialPoint.y
-          );
-          onDrag(movement);
+        // Create a local coordinate system for the face using the normal
+        // We need two orthogonal vectors in the plane perpendicular to the normal
+        const up = new THREE.Vector3(0, 1, 0);
+        const right = new THREE.Vector3().crossVectors(up, normal).normalize();
+        
+        // If right vector is zero (normal is parallel to up), use a different reference
+        if (right.length() < 0.001) {
+          const forward = new THREE.Vector3(0, 0, 1);
+          right.crossVectors(forward, normal).normalize();
         }
+        
+        // Calculate the actual up vector perpendicular to both normal and right
+        const localUp = new THREE.Vector3().crossVectors(normal, right).normalize();
+
+        // Project the 3D movement onto the face's local 2D coordinate system
+        const movement = new THREE.Vector2(
+          movement3D.dot(right),    // Movement along the right axis (local X)
+          movement3D.dot(localUp)   // Movement along the up axis (local Y)
+        );
+        
+        onDrag(movement);
       }
+    }
 
-      if (last) {
-        onDragEnd();
-        handlePointerOut();
-      }
-
-    },
-    {}
-  );
-
+    if (last) {
+      onDragEnd();
+      handlePointerOut();
+    }
+  }, {});
 
   return (
     <Billboard
@@ -134,13 +125,9 @@ const Handler = ({
       onPointerOver={handlePointerOver}
       onPointerOut={handlePointerOut}
     >
-			<Circle args={[0.01, 24]}>
-				<meshBasicMaterial
-					color="#000000"
-					transparent
-					depthTest={false}
-				/>
-			</Circle>
+      <Circle args={[0.01, 24]}>
+        <meshBasicMaterial color="#000000" transparent depthTest={false} />
+      </Circle>
     </Billboard>
   );
 };
