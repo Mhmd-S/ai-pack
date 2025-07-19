@@ -8,7 +8,7 @@ import TextHandlerGroup from "../Handler/TextHandlerGroup";
 import { button } from "leva";
 import { useSelect } from "@react-three/drei";
 import { useControlsDecals } from "@/components/edit/MultiLeva";
-import { useFonts } from "@/hooks/use-fonts";
+import { useFonts, WEIGHTS } from "@/hooks/use-fonts";
 
 interface TextDecalProps {
   id: string;
@@ -37,6 +37,8 @@ const TextDecal = ({
   const [resizeType, setResizeType] = useState<'corner' | 'edge-x' | 'edge-y' | null>(null);
   const [isRotating, setIsRotating] = useState(false);
   const [isMoving, setIsMoving] = useState(false);
+  const [currentFontFamily, setCurrentFontFamily] = useState('inter');
+  const [availableWeights, setAvailableWeights] = useState<Record<string, string>>({});
 
   const { getAvailableFamilies } = useFonts();
 
@@ -50,12 +52,20 @@ const TextDecal = ({
     return acc;
   }, {} as Record<string, string>);
 
-  // Weight options for Leva
-  const weightOptions = {
-    'Light': 'light',
-    'Regular': 'regular', 
-    'Bold': 'bold'
+  // Function to get available weights for a font family
+  const getAvailableWeights = (fontFamily: string): Record<string, string> => {
+    // All fonts have the same weights based on the WEIGHTS constant
+    return WEIGHTS.reduce((acc, weight) => {
+      const displayName = weight.charAt(0).toUpperCase() + weight.slice(1);
+      acc[displayName] = weight;
+      return acc;
+    }, {} as Record<string, string>);
   };
+
+  // Initialize available weights on mount
+  useEffect(() => {
+    setAvailableWeights(getAvailableWeights(currentFontFamily));
+  }, [currentFontFamily]);
 
   const levaConfig = {
     position: {
@@ -71,12 +81,20 @@ const TextDecal = ({
       value: "#000000",
     },
     "font family": {
-      value: "jost",
+      value: "inter",
       options: fontOptions,
+      onChange: (value: string) => {
+        setCurrentFontFamily(value);
+        setAvailableWeights(getAvailableWeights(value));
+      },
     },
     "font weight": {
-      value: "regular",
-      options: weightOptions,
+      value: "normal",
+      options: availableWeights,
+      onChange: (value: string) => {
+        // Handle font weight change if needed
+        console.log('Font weight changed to:', value);
+      },
     },
     "Align Text": {
       value: "center",

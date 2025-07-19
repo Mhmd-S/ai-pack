@@ -62,45 +62,86 @@ const TextBox = ({
 
   const { fontProps } = useFonts();
 
-  // Split combined font key into family and weight
-  const parseFontKey = (fontKey: string) => {
-    const parts = fontKey.split("-");
-    if (parts.length >= 2) {
-      const weight = parts[parts.length - 1];
-      const family = parts.slice(0, -1).join("-");
+  // Memoized font parsing function
+  const parseFontKey = useMemo(() => {
+    return (fontKey: string) => {
+      const parts = fontKey.split("-");
+      if (parts.length >= 2) {
+        const weight = parts[parts.length - 1];
+        const family = parts.slice(0, -1).join("-");
 
-      // Validate that this is a valid weight
-      if (["light", "normal", "bold"].includes(weight)) {
-        return { family, weight };
+        // Validate that this is a valid weight
+        if (["light", "normal", "bold"].includes(weight)) {
+          return { family, weight };
+        }
       }
+
+      // Fallback if parsing fails
+      return { family: "poppins", weight: "normal" };
+    };
+  }, []);
+
+  // Memoized font family and weight parsing
+  const { fontFamilyName, fontWeight, finalFontFamily, finalFontWeight } = useMemo(() => {
+    const { family: fontFamilyName, weight: fontWeight } = parseFontKey(fontFamily);
+
+    // Check if the font family exists in fontProps
+    const fontExists = fontProps[fontFamilyName] && fontProps[fontFamilyName][fontWeight];
+
+    // Use fallback font family and weight if the requested one doesn't exist
+    const finalFontFamily = fontExists ? fontFamilyName : "poppins";
+    const finalFontWeight = fontExists ? fontWeight : "normal";
+
+    // Map string weights to numeric values for the UI components
+    const fontWeightMap: Record<string, number> = {
+      light: 300,
+      normal: 400,
+      bold: 700,
+    };
+
+    return {
+      fontFamilyName,
+      fontWeight,
+      fontExists,
+      finalFontFamily,
+      finalFontWeight: fontWeightMap[finalFontWeight] || 400,
+    };
+  }, [fontFamily, fontProps, parseFontKey]);
+
+  useEffect(() => {
+    if (!inputRef.current || !textRef.current) return;
+
+    // Check if the font has the selected weight
+    if (!fontProps[fontFamilyName][finalFontWeight]) {
+      inputRef.current.setStyle({
+        fontFamily: fontFamilyName,
+        fontWeight: 400,
+      });
+      textRef.current.setStyle({
+        fontFamily: fontFamilyName,
+        fontWeight: 400,
+      });
+      return;
     }
 
-    // Fallback if parsing fails
-    return { family: "inconsolata", weight: "normal" };
-  };
+    inputRef.current.setStyle({
+      fontFamily: fontFamilyName,
+      fontWeight: 400,
+    });
+    textRef.current.setStyle({
+      fontFamily: fontFamilyName,
+      fontWeight: 400,
+    });
 
-  const { family: fontFamilyName, weight: fontWeight } =
-    parseFontKey(fontFamily);
+  }, [fontFamilyName, fontWeight]);
 
-  // Check if the font family exists in fontProps
-  const fontExists =
-    fontProps[fontFamilyName] && fontProps[fontFamilyName][fontWeight];
-
-  if (!fontExists) {
-    console.warn(`Font ${fontFamilyName} with weight ${fontWeight} not found`);
-  }
-
-  // Use fallback font family and weight if the requested one doesn't exist
-  const finalFontFamily = fontExists ? fontFamilyName : "inconsolata";
-  const finalFontWeight = fontExists ? fontWeight : "normal";
-
-  // Console log the interactionPanel when textRef changes
+  // Register the textRef to the store
   useEffect(() => {
     if (textRef.current && textRef.current.interactionPanel) {
       // Add userData to the interactionPanel
       textRef.current.interactionPanel.userData = { store, isDecal: true };
     }
-  }, [isEditing]);
+  }, [isEditing, fontFamilyName, fontWeight]);
 
   useEffect(() => {
     if (inputRef?.current && inputRef?.current?.setStyle) {
@@ -118,7 +159,13 @@ const TextBox = ({
 
   // useEffect for font Size -> Scale. When the size changes, we need to update the scale
   useEffect(() => {
-    if (!isSelected || isEditing || resizeType === "edge-x" || resizeType === "corner") return;
+    if (
+      !isSelected ||
+      isEditing ||
+      resizeType === "edge-x" ||
+      resizeType === "corner"
+    )
+      return;
 
     const scalePanel = containerRef.current?.interactionPanel?.scale;
 
@@ -141,7 +188,7 @@ const TextBox = ({
 
   // useEffect for scale x, this mainly handles the edge-x resizing by copying the scale x to the scale prop while not mainting aspect ratio, aslo handles when the text is wrapping and we got to update the y
   useEffect(() => {
-    if (!isSelected || isEditing || resizeType === "corner") return;
+    if (!isSelected || resizeType === "corner") return;
 
     const scalePanel = containerRef.current?.interactionPanel?.scale;
 
@@ -158,7 +205,14 @@ const TextBox = ({
         scale: rawScale,
       });
     }
-  }, [containerRef.current?.interactionPanel?.scale.x]);
+  }, [
+    containerRef.current?.interactionPanel?.scale.x,
+    containerRef.current?.interactionPanel?.scale.y,
+    inputRef.current?.interactionPanel?.scale.x,
+    inputRef.current?.interactionPanel?.scale.y,
+    fontFamilyName,
+    finalFontWeight,
+  ]);
 
   // Handle clicks outside the text box to save
   useEffect(() => {
@@ -284,23 +338,20 @@ const TextBox = ({
   };
 
   const getInputProps = () => {
-    const pixelSize = size;
     const displayColor = color;
-
-    // Different caret widths based on state
-    const caretWidth = isSelected && isEditing ? 0.5 : 0.01;
 
     return {
       ref: inputRef,
       value: text,
       onValueChange: handleInputChange,
       multiline: true,
-      fontSize: pixelSize,
+      fontSize: size,
       color: displayColor,
       fontFamily: finalFontFamily,
-      fontWeight: finalFontWeight as any,
-      lineHeight: pixelSize,
-      caretWidth,
+      fontWeight: finalFontWeight,
+      lineHeight: size * 1.2,
+      caretWidth: 0.7,
+      caretColor: "black",
       backgroundOpacity: 0,
       width: "100%" as const,
       height: "auto" as const,
@@ -319,7 +370,7 @@ const TextBox = ({
       fontSize: pixelSize,
       color: displayColor,
       fontFamily: finalFontFamily,
-      fontWeight: finalFontWeight as any,
+      fontWeight: finalFontWeight,
       textAlign,
       wordBreak: "break-all" as const,
       width: "100%" as const,

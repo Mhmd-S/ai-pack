@@ -20,18 +20,14 @@ interface FontFamilyProps {
     };
 }
 
-// Top 50 most popular Google Fonts (based on the script)
 const POPULAR_FONTS = [
-    'roboto', 'open-sans', 'lato', 'montserrat', 'oswald', 'source-sans-pro',
-    'slabo-27px', 'raleway', 'pt-sans', 'lora', 'roboto-condensed',
-    'ubuntu', 'roboto-slab', 'nunito', 'playfair-display', 'merriweather',
-    'pt-serif', 'noto-sans', 'mukti', 'rubik', 'work-sans', 'inter',
-    'noto-serif', 'poppins', 'fira-sans', 'titillium-web', 'barlow',
-    'dm-sans', 'libre-baskerville', 'crimson-text', 'ibm-plex-sans',
-    'karla', 'cormorant-garamond', 'eb-garamond', 'source-serif-pro',
-    'fjalla-one', 'anton', 'bebas-neue', 'cinzel', 'libre-franklin',
-    'quicksand', 'inconsolata', 'abril-fatface', 'zilla-slab', 'archivo',
-    'heebo', 'red-hat-display', 'space-mono', 'jetbrains-mono', 'manrope'
+    'barlow', 'dm-sans', 'fira-sans', 'heebo', 'hind-siliguri', 'ibm-plex-sans',
+    'inconsolata', 'inter', 'jost', 'kanit', 'karla', 'lato',
+    'manrope', 'material-symbols-outlined', 'merriweather', 'montserrat', 'mukta', 'mulish',
+    'noto-sans', 'noto-sans-jp', 'noto-sans-kr', 'noto-sans-tc', 'noto-serif', 'nunito',
+    'nunito-sans', 'open-sans', 'oswald', 'outfit', 'poppins', 'prompt',
+    'quicksand', 'raleway', 'roboto', 'roboto-condensed', 'roboto-mono', 'roboto-slab',
+    'rubik', 'titillium-web', 'ubuntu', 'work-sans'
 ];
 
 const WEIGHTS = ['light', 'normal', 'bold'] as const;
@@ -44,7 +40,7 @@ export function useFonts() {
         POPULAR_FONTS.forEach(fontFamily => {
             props[fontFamily] = {
                 light: `/fonts/fixed-${fontFamily}-light.json`,
-                normal: `/fonts/fixed-${fontFamily}-regular.json`,
+                normal: `/fonts/fixed-${fontFamily}-normal.json`,
                 bold: `/fonts/fixed-${fontFamily}-bold.json`
             };
         });
@@ -59,15 +55,15 @@ export function useFonts() {
             families[fontFamily] = {
                 light: {
                     src: `/fonts/${fontFamily}-light.png`,
-                    data: `/fonts/${fontFamily}-light.json`
+                    data: `/fonts/fixed-${fontFamily}-light.json`
                 },
                 normal: {
-                    src: `/fonts/${fontFamily}-regular.png`,
-                    data: `/fonts/${fontFamily}-regular.json`
+                    src: `/fonts/${fontFamily}-normal.png`,
+                    data: `/fonts/fixed-${fontFamily}-normal.json`
                 },
                 bold: {
                     src: `/fonts/${fontFamily}-bold.png`,
-                    data: `/fonts/${fontFamily}-bold.json`
+                    data: `/fonts/fixed-${fontFamily}-bold.json`
                 }
             };
         });
@@ -80,7 +76,7 @@ export function useFonts() {
         const fontKey = `${family}-${weight}`;
         return {
             src: `/fonts/${fontKey}.png`,
-            data: `/fonts/${fontKey}.json`
+            data: `/fonts/fixed-${fontKey}.json`
         };
     };
 
