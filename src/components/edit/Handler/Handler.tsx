@@ -8,9 +8,7 @@ interface HandlerProps {
   position: THREE.Vector3;
   cursor: string;
   normal: THREE.Vector3;
-  scale: [number, number, number];
   onDragStart: () => void;
-  rotation: [number, number, number];
   onDrag: (movement: THREE.Vector2) => void;
   onDragEnd: () => void;
   onHover: (hovered: boolean) => void;
@@ -25,16 +23,12 @@ const Handler = ({
   position,
   cursor,
   normal,
-  scale,
-  rotation,
   onDragStart,
   onDrag,
   onDragEnd,
   onHover,
 }: HandlerProps) => {
   const { camera, raycaster } = useThree();
-  // const [relativeQ, setRelativeQ] = useState<THREE.Quaternion>(new THREE.Quaternion());
-  // const [currentRotation, setCurrentRotation] = useState<THREE.Euler>(new THREE.Euler());
 
   useCursor(true, cursor);
 

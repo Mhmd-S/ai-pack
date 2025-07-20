@@ -30,7 +30,7 @@ const FaceMesh = ({ geometry }: FaceMeshProps) => {
   const [store, materialProps] = useControlsFaceMesh(selectedUserDataStores, {
     color: { value: defaultColor },
     "Add Text": button((get) => addText(get("text"))),
-    // "Add Image": button((get) => addImage(get("image"))),
+    "Add Image": button(() => addImage()),
   });
 
   const isSelected = !!selectedUserDataStores.find((s) => s === store);
@@ -57,6 +57,29 @@ const FaceMesh = ({ geometry }: FaceMeshProps) => {
       [Object.keys(prevTexts).length]: text,
     }));
   }, []);
+
+  // Handle image add
+  const addImage = useCallback(() => {
+    // Create a file input element
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    
+    // Handle file selection
+    input.onchange = (event) => {
+      const file = (event.target as HTMLInputElement).files?.[0];
+      if (file) {
+        // Create a URL for the selected image
+        const imageUrl = URL.createObjectURL(file);
+        
+        // Add the image using the existing onImageDrop logic
+        onImageDrop(imageUrl);
+      }
+    };
+    
+    // Trigger the file picker
+    input.click();
+  }, [onImageDrop]);
 
   // Handle image drop
   useImageDrop({ meshRef, onImageDrop });
@@ -115,15 +138,14 @@ const FaceMesh = ({ geometry }: FaceMeshProps) => {
               boundingBox={details?.boundingBox ?? new THREE.Box3()}
               normal={details?.faceNormal ?? new THREE.Vector3(0, 0, 0)}
               onDelete={removeText}
-              meshRef={meshRef}
             />
           ))}
 
         {meshRef.current &&
           Object.entries(images).map(([id, image]) => (
             <ImageDecal
-              meshRef={meshRef}
               key={`${image}-${id}`}
+              id={id}
               url={image}
               initialRotation={
                 details?.rotation ?? ([0, 0, 0] as [number, number, number])

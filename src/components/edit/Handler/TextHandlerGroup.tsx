@@ -274,9 +274,7 @@ const TextHandlerGroup = ({
             key={handler.id}
             position={getPointInLocalSpace(handler.normalizedPosition, scale)}
             cursor={handler.cursor}
-            rotation={rotation}
             normal={normal}
-            scale={visualScale}
             onHover={onHover}
             onDragStart={() => handleDragStart(handler)}
             onDrag={(movement) => handleDrag(handler, movement)}

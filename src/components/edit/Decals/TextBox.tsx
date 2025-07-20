@@ -311,11 +311,9 @@ const TextBox = ({
     return {
       pixelSize: 0.002,
       sizeX: rootWidth,
-      // sizeY: rootHeight,
       flexDirection: "column" as const,
       alignItems: "center" as const,
       justifyContent: "flex-start" as const,
-      ...(isSelected && !isEditing ? bind() : {}),
     };
   };
 

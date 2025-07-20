@@ -13,7 +13,6 @@ import { useFonts, WEIGHTS } from "@/hooks/use-fonts";
 interface TextDecalProps {
   id: string;
   text: string;
-  meshRef: React.RefObject<THREE.Mesh>;
   initialRotation: [number, number, number];
   center: THREE.Vector3;
   boundingBox: THREE.Box3;
@@ -24,7 +23,6 @@ interface TextDecalProps {
 const TextDecal = ({
   id,
   text,
-  meshRef,
   initialRotation,
   center,
   boundingBox,

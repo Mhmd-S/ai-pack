@@ -18,7 +18,7 @@ import { Object3D } from 'three';
 import FaceMesh from '@/components/edit/FaceMesh';
 
 // Main component
-const OBJModelEdit: React.FC<OBJModelEditProps> = ({
+const DesignEdit3D: React.FC<OBJModelEditProps> = ({
 	url,
 }: {
 	url: string;
@@ -34,6 +34,7 @@ const OBJModelEdit: React.FC<OBJModelEditProps> = ({
 	}, [selected]);
 
 	const handleSelectionChange = (selectedObjects: Object3D[]) => {
+		console.log(selectedObjects);
 		setSelected(selectedObjects);
 	};
 
@@ -124,4 +125,4 @@ const OBJModelEdit: React.FC<OBJModelEditProps> = ({
 	);
 };
 
-export default OBJModelEdit;
+export default DesignEdit3D;

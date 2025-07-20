@@ -75,7 +75,7 @@ export const calculateFaceDetails = (mesh: THREE.Mesh) => {
 				faceNormal.z
 			).normalize();
 
-			let rotation = [0, 0, 0];
+			let rotation: [number, number, number] = [0, 0, 0];
 
 			// Calculate Euler angles from the normal vector
 			// Y-axis rotation (pitch) - rotation around X axis

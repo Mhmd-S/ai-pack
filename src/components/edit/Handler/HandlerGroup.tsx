@@ -15,8 +15,10 @@ interface HandlerGroupProps {
   rotation: [number, number, number];
   normal: THREE.Vector3;
   onUpdate: (newProps: {
-    scale: [number, number];
-    position: [number, number, number];
+    scale?: [number, number];
+    position?: [number, number, number];
+    cropScale?: [number, number];
+    resizeType: "corner" | "edge-x" | "edge-y";
   }) => void;
   onHover: (hovered: boolean) => void;
   setIsResizing: (isResizing: boolean) => void;
@@ -136,7 +138,6 @@ const HandlerGroup = ({
       inverseRotationMatrix,
     } = dragInfo;
 
-    // CHANGED: Transform world-space movement vector into the group's local space
     const localMovement = new THREE.Vector3(
       movement.x,
       movement.y,
@@ -151,10 +152,12 @@ const HandlerGroup = ({
     const newWidth = Math.abs(currentHandlePosition.x - pivotPoint.x);
     const newHeight = Math.abs(currentHandlePosition.y - pivotPoint.y);
 
-    let newScale: [number, number];
+    let newScale: [number, number] | undefined;
+    let cropScale: [number, number] | undefined;
     let centerOffset = new THREE.Vector3();
 
     if (handler.type === "corner") {
+      // Corner resizing: change the actual image size while maintaining aspect ratio
       const aspectRatio =
         initialScale.y === 0 ? 1 : initialScale.x / initialScale.y;
       newScale =
@@ -177,15 +180,18 @@ const HandlerGroup = ({
         newPivotLocalPos
       );
     } else if (handler.type === "edge-x") {
-      newScale = [newWidth, initialScale.y];
+      // Edge-x resizing: keep image size same, only change container width for cropping
+      cropScale = [newWidth, initialScale.y];
+      
       centerOffset.set(
         (currentHandlePosition.x + pivotPoint.x) / 2,
         0, // Y position doesn't change relative to center
         0
       );
     } else {
-      // 'edge-y'
-      newScale = [initialScale.x, newHeight];
+      // Edge-y resizing: keep image size same, only change container height for cropping
+      cropScale = [initialScale.x, newHeight];
+      
       centerOffset.set(
         0, // X position doesn't change relative to center
         (currentHandlePosition.y + pivotPoint.y) / 2,
@@ -209,10 +215,21 @@ const HandlerGroup = ({
       newPositionVec.z,
     ];
 
-    onUpdate({
-      scale: [Math.max(0.01, newScale[0]), Math.max(0.01, newScale[1])],
+    // Create update object based on resize type
+    const updateProps: any = {
       position: newPosition,
-    });
+      resizeType: handler.type,
+    };
+
+    if (newScale) {
+      // Corner resizing: update actual image scale
+      updateProps.scale = [Math.max(0.01, newScale[0]), Math.max(0.01, newScale[1])];
+    } else if (cropScale) {
+      // Edge resizing: update crop scale for container clipping
+      updateProps.cropScale = [Math.max(0.01, cropScale[0]), Math.max(0.01, cropScale[1])];
+    }
+
+    onUpdate(updateProps);
   };
 
   const handleDragEnd = () => {
@@ -225,7 +242,6 @@ const HandlerGroup = ({
       rotation={new THREE.Euler(rotation[0], rotation[1], rotation[2])}
     >
       {handlers.map((handler) => {
-        if ((handler.id === "top" || handler.id === "bottom")) return;
         // Determine visual scale for edge handlers to make them look like bars
         const visualScale: [number, number, number] = [1, 1, 1];
         if (handler.type === "edge-x") visualScale[1] = 2.5;
@@ -234,10 +250,9 @@ const HandlerGroup = ({
         return (
           <Handler
             key={handler.id}
+            normal={normal}
             position={getPointInLocalSpace(handler.normalizedPosition, scale)}
             cursor={handler.cursor}
-            rotation={rotation}
-            scale={visualScale}
             onHover={onHover}
             onDragStart={() => handleDragStart(handler)}
             onDrag={(movement) => handleDrag(handler, movement)}
