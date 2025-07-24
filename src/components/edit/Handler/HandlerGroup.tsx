@@ -19,9 +19,10 @@ interface HandlerGroupProps {
     position?: [number, number, number];
     cropScale?: [number, number];
     resizeType: "corner" | "edge-x" | "edge-y";
+    handlerId?: string;
   }) => void;
   onHover: (hovered: boolean) => void;
-  setIsResizing: (isResizing: boolean) => void;
+  setIsResizing: (isResizing: boolean, handlerId?: string) => void;
 }
 
 const handlers: HandlerConfig[] = [
@@ -104,7 +105,7 @@ const HandlerGroup = ({
     );
 
   const handleDragStart = (handler: HandlerConfig) => {
-    setIsResizing(true);
+    setIsResizing(true, handler.id);
 
     // The pivot point is opposite the handle, in LOCAL space
     const pivotNormalizedPos: [number, number] = [
@@ -138,11 +139,35 @@ const HandlerGroup = ({
       inverseRotationMatrix,
     } = dragInfo;
 
-    const localMovement = new THREE.Vector3(
-      movement.x,
-      movement.y,
-      0
-    ).applyMatrix4(inverseRotationMatrix);
+    // Check if any rotation is approximately π (3.14)
+    const isNearPi = (value: number) =>
+      Math.abs(Math.abs(value) - Math.PI) < 0.1;
+    const hasNearPiRotation =
+      isNearPi(rotation[0]) || isNearPi(rotation[1]) || isNearPi(rotation[2]);
+
+    let localMovement: THREE.Vector3;
+
+    // Sometimes the faces are rotated 180 degrees due to how the model was designed, so we need to invert the movement
+    if (hasNearPiRotation) {
+      // Create movement vector with inverted axes for rotations near π
+      const invertedMovement = new THREE.Vector3(
+        isNearPi(rotation[0]) ? movement.x : -movement.x,
+        isNearPi(rotation[1]) ? movement.y : -movement.y,
+        isNearPi(rotation[2]) ? -0 : 0
+      );
+
+      // Apply rotation matrix
+      localMovement = invertedMovement.applyMatrix4(
+        new THREE.Matrix4()
+          .makeRotationFromEuler(
+            new THREE.Euler(rotation[0], rotation[1], rotation[2])
+          )
+          .invert()
+      );
+    } else {
+      // Don't apply rotation matrix
+      localMovement = new THREE.Vector3(movement.x, movement.y, 0);
+    }
 
     const currentHandlePosition = new THREE.Vector3()
       .copy(initialHandlePosition)
@@ -182,7 +207,7 @@ const HandlerGroup = ({
     } else if (handler.type === "edge-x") {
       // Edge-x resizing: keep image size same, only change container width for cropping
       cropScale = [newWidth, initialScale.y];
-      
+
       centerOffset.set(
         (currentHandlePosition.x + pivotPoint.x) / 2,
         0, // Y position doesn't change relative to center
@@ -191,7 +216,7 @@ const HandlerGroup = ({
     } else {
       // Edge-y resizing: keep image size same, only change container height for cropping
       cropScale = [initialScale.x, newHeight];
-      
+
       centerOffset.set(
         0, // X position doesn't change relative to center
         (currentHandlePosition.y + pivotPoint.y) / 2,
@@ -219,21 +244,28 @@ const HandlerGroup = ({
     const updateProps: any = {
       position: newPosition,
       resizeType: handler.type,
+      handlerId: handler.id,
     };
 
     if (newScale) {
-      // Corner resizing: update actual image scale
-      updateProps.scale = [Math.max(0.01, newScale[0]), Math.max(0.01, newScale[1])];
+      // Corner resizing: update actual image scale      
+      updateProps.scale = [
+        Math.max(0.01, newScale[0]),
+        Math.max(0.01, newScale[1]),
+      ];
     } else if (cropScale) {
       // Edge resizing: update crop scale for container clipping
-      updateProps.cropScale = [Math.max(0.01, cropScale[0]), Math.max(0.01, cropScale[1])];
+      updateProps.cropScale = [
+        Math.max(0.01, cropScale[0]),
+        Math.max(0.01, cropScale[1]),
+      ];
     }
 
     onUpdate(updateProps);
   };
 
   const handleDragEnd = () => {
-    setIsResizing(false);
+    setIsResizing(false, undefined);
   };
 
   return (

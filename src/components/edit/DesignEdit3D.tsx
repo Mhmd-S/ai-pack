@@ -41,6 +41,7 @@ const DesignEdit3D: React.FC<OBJModelEditProps> = ({
 	return (
 		<div style={{ position: 'relative', width: '100%', height: '100%' }}>
 			<Canvas
+				gl={{ localClippingEnabled: true }}
 				style={{
 					width: '100%',
 					height: '100%',
