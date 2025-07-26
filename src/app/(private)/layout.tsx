@@ -2,8 +2,8 @@ import '../globals.css';
 import AppSidebar from '@/components/app-sidebar';
 
 export const metadata = {
-	title: '3lbetak',
-	description: '3lbetak',
+	title: 'The Box',
+	description: 'The box',
 };
 
 export default function RootLayout({

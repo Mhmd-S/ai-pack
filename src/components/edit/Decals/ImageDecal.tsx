@@ -41,6 +41,7 @@ const ImageDecal = ({
     bottom: false,
   });
 
+  const rootRef = useRef<any>(null);
   const imageContainerRef = useRef<any>(null);
   const prevCropScale = useRef<[number, number] | null>(null);
   const imageRef = useRef<any>(null);
@@ -84,10 +85,25 @@ const ImageDecal = ({
 
   const isSelected = !!selectedUserDataStores.find((s) => s === store);
 
+  // Calculate and set effective image scale for rendering
+  const [effectiveImageScale, setEffectiveImageScale] = useState<
+    [number, number]
+  >([standardWidth, standardHeight]);
+
   // This is used to store the store and isDecal in the imageContainerRef.current.interactionPanel.userData so it can display its store
   useEffect(() => {
-    if (imageRef.current && imageRef.current.interactionPanel) {
+    if (imageRef.current && imageContainerRef.current) {
       imageRef.current.interactionPanel.userData = { store, isDecal: true };
+
+      rootRef.current.setStyle({
+        width: materialProps.scale[0] * 100,
+        height: materialProps.scale[0] * 100,
+      });
+
+      imageContainerRef.current.setStyle({
+        width: materialProps.scale[0] * 100,
+        height: materialProps.scale[0] * 100,
+      });
     }
   }, []);
 
@@ -136,9 +152,6 @@ const ImageDecal = ({
       accumulatedOffset.current = [0, 0];
       set({ scale: newProps.scale, position: newProps.position });
     } else {
-
-  
-
       // Edge resizing: update crop scale and position, keep image scale same
       setCropScale(newProps.cropScale || null);
 
@@ -146,8 +159,8 @@ const ImageDecal = ({
       if (newProps.cropScale && newProps.handlerId) {
         const cropWidth = newProps.cropScale[0];
         const cropHeight = newProps.cropScale[1];
-        const imageWidth = currentScale[0];
-        const imageHeight = currentScale[1];
+        const imageWidth = materialProps.scale[0];
+        const imageHeight = materialProps.scale[1];
 
         let newCropPosition: [number, number] = [0, 0];
 
@@ -277,14 +290,6 @@ const ImageDecal = ({
     };
   }, [isSelected, id, onDelete]);
 
-  const currentScale = materialProps.scale || [standardWidth, standardHeight];
-  const displayScale = cropScale || currentScale;
-
-  // Calculate and set effective image scale for rendering
-  const [effectiveImageScale, setEffectiveImageScale] = useState<
-    [number, number]
-  >([standardWidth, standardHeight]);
-
   useEffect(() => {
     if (!cropScale) {
       return;
@@ -302,16 +307,21 @@ const ImageDecal = ({
       scaleX = cropScale[0];
       scaleY = cropScale[1];
     } else {
-      scaleX = currentScale[0];
-      scaleY = currentScale[1];
+      scaleX = materialProps.scale[0];
+      scaleY = materialProps.scale[1];
     }
 
     imageContainerRef.current.setStyle({
       width: scaleX * 100,
-      height: scaleY * 100
-    })
+      height: scaleY * 100,
+    });
 
     setEffectiveImageScale([scaleX, scaleY]);
+
+    imageContainerRef.current.setStyle({
+      width: scaleX * 100,
+      height: scaleY * 100,
+    });
 
     // Got to improve the conditional here
     if (
@@ -352,8 +362,13 @@ const ImageDecal = ({
         transformTranslateX: accumulatedOffset.current[0],
         transformTranslateY: accumulatedOffset.current[1],
       });
+
+      rootRef.current.setStyle({
+        width: cropScale[0] * 100,
+        height: cropScale[1] * 100,
+      });
     }
-  }, [cropScale, cropPosition, currentScale]);
+  }, [cropScale, cropPosition, materialProps.scale]);
 
   // Update the effect that tracks previous values
   useEffect(() => {
@@ -386,8 +401,7 @@ const ImageDecal = ({
         onPointerOut={() => setHover(false)}
       >
         <Root
-          width={displayScale[0] * 100}
-          height={displayScale[1] * 100}
+          ref={rootRef}
           borderWidth={0.1}
           borderColor={isSelected ? "red" : hovered ? "red" : "transparent"}
           overflow="hidden"
@@ -395,8 +409,6 @@ const ImageDecal = ({
         >
           <Container
             ref={imageContainerRef}
-            width={effectiveImageScale[0] * 100}
-            height={effectiveImageScale[1] * 100}
             positionType="absolute"
           >
             <Image
@@ -415,7 +427,7 @@ const ImageDecal = ({
       {isSelected && (
         <>
           <HandlerGroup
-            scale={displayScale}
+            scale={cropScale ? cropScale : materialProps.scale}
             position={[
               materialProps.position[0],
               materialProps.position[1],
@@ -433,7 +445,7 @@ const ImageDecal = ({
               materialProps.position[1],
               materialProps.position[2],
             ]}
-            scale={displayScale}
+            scale={cropScale ? cropScale : materialProps.scale}
             rotation={materialProps.rotation}
             normal={normal}
             onUpdate={handleRotationUpdate}
