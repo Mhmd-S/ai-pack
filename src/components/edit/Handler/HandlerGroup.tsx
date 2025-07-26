@@ -20,6 +20,7 @@ interface HandlerGroupProps {
     cropScale?: [number, number];
     resizeType: "corner" | "edge-x" | "edge-y";
     handlerId?: string;
+    handlerPosition?: THREE.Vector3;
   }) => void;
   onHover: (hovered: boolean) => void;
   setIsResizing: (isResizing: boolean, handlerId?: string) => void;
@@ -248,17 +249,26 @@ const HandlerGroup = ({
     };
 
     if (newScale) {
-      // Corner resizing: update actual image scale      
+      // Corner resizing: update actual image scale
       updateProps.scale = [
         Math.max(0.01, newScale[0]),
         Math.max(0.01, newScale[1]),
       ];
+      updateProps.handlerPosition = getPointInLocalSpace(
+        handler.normalizedPosition,
+        updateProps.scale
+      );
     } else if (cropScale) {
       // Edge resizing: update crop scale for container clipping
       updateProps.cropScale = [
         Math.max(0.01, cropScale[0]),
         Math.max(0.01, cropScale[1]),
       ];
+
+      updateProps.handlerPosition = getPointInLocalSpace(
+        handler.normalizedPosition,
+        updateProps.cropScale
+      );
     }
 
     onUpdate(updateProps);

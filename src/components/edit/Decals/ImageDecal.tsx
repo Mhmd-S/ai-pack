@@ -34,6 +34,13 @@ const ImageDecal = ({
   const [cropScale, setCropScale] = useState<[number, number] | null>(null);
   const [resizeHandle, setResizeHandle] = useState<string | null>(null);
 
+  const [containerLargerThanImage, setContainerLargerThanImage] = useState({
+    left: false,
+    right: false,
+    top: false,
+    bottom: false,
+  });
+
   const imageContainerRef = useRef<any>(null);
   const prevCropScale = useRef<[number, number] | null>(null);
   const imageRef = useRef<any>(null);
@@ -119,6 +126,7 @@ const ImageDecal = ({
     cropScale?: [number, number];
     resizeType: "corner" | "edge-x" | "edge-y";
     handlerId?: string;
+    handlerPosition?: [number, number];
   }) => {
     if (newProps.resizeType === "corner") {
       // Corner resizing: update actual image scale and clear crop
@@ -128,6 +136,9 @@ const ImageDecal = ({
       accumulatedOffset.current = [0, 0];
       set({ scale: newProps.scale, position: newProps.position });
     } else {
+
+  
+
       // Edge resizing: update crop scale and position, keep image scale same
       setCropScale(newProps.cropScale || null);
 
@@ -145,13 +156,45 @@ const ImageDecal = ({
           newProps.handlerId === "top-left" ||
           newProps.handlerId === "bottom-left"
         ) {
+          if (
+            newProps.handlerId === "left" &&
+            newProps.handlerPosition &&
+            imageWidth * -0.5 > newProps.handlerPosition.x
+          ) {
+            setContainerLargerThanImage((prevState) => ({
+              ...prevState,
+              left: true,
+            }));
+          } else {
+            setContainerLargerThanImage((prevState) => ({
+              ...prevState,
+              left: false,
+            }));
+          }
           // Left edge: crop position is negative (image extends left of crop center)
           newCropPosition[0] = -(imageWidth - cropWidth) / 2;
-        } else if (
+        }
+
+        if (
           newProps.handlerId === "right" ||
           newProps.handlerId === "top-right" ||
           newProps.handlerId === "bottom-right"
         ) {
+          if (
+            newProps.handlerId === "right" &&
+            newProps.handlerPosition &&
+            imageWidth * 0.5 < newProps.handlerPosition.x
+          ) {
+            setContainerLargerThanImage((prevState) => ({
+              ...prevState,
+              right: true,
+            }));
+          } else {
+            setContainerLargerThanImage((prevState) => ({
+              ...prevState,
+              right: false,
+            }));
+          }
           // Right edge: crop position is positive (image extends right of crop center)
           newCropPosition[0] = (imageWidth - cropWidth) / 2;
         }
@@ -161,13 +204,45 @@ const ImageDecal = ({
           newProps.handlerId === "top-left" ||
           newProps.handlerId === "top-right"
         ) {
+          if (
+            newProps.handlerId === "top" &&
+            newProps.handlerPosition &&
+            imageHeight * 0.5 < newProps.handlerPosition.y
+          ) {
+            setContainerLargerThanImage((prevState) => ({
+              ...prevState,
+              top: true,
+            }));
+          } else {
+            setContainerLargerThanImage((prevState) => ({
+              ...prevState,
+              top: false,
+            }));
+          }
           // Top edge: crop position is positive (image extends above crop center)
           newCropPosition[1] = (imageHeight - cropHeight) / 2;
-        } else if (
+        }
+
+        if (
           newProps.handlerId === "bottom" ||
           newProps.handlerId === "bottom-left" ||
           newProps.handlerId === "bottom-right"
         ) {
+          if (
+            newProps.handlerId === "bottom" &&
+            newProps.handlerPosition &&
+            imageHeight * -0.5 > newProps.handlerPosition.y
+          ) {
+            setContainerLargerThanImage((prevState) => ({
+              ...prevState,
+              bottom: true,
+            }));
+          } else {
+            setContainerLargerThanImage((prevState) => ({
+              ...prevState,
+              bottom: false,
+            }));
+          }
           // Bottom edge: crop position is negative (image extends below crop center)
           newCropPosition[1] = -(imageHeight - cropHeight) / 2;
         }
@@ -211,69 +286,72 @@ const ImageDecal = ({
   >([standardWidth, standardHeight]);
 
   useEffect(() => {
-    let newEffectiveImageScale: [number, number];
-
     if (!cropScale) {
-      // No cropping, use current scale
-      newEffectiveImageScale = currentScale;
       return;
     }
 
-    const isCroppingWidth = cropScale[0] < currentScale[0];
-    const isCroppingHeight = cropScale[1] < currentScale[1];
+    let scaleX;
+    let scaleY;
 
-    // If crop container is larger than image, scale image to match container exactly
-    // If crop container is smaller, keep original image size for cropping
-    const scaleX = isCroppingWidth ? currentScale[0] : cropScale[0];
-    const scaleY = isCroppingHeight ? currentScale[1] : cropScale[1];
+    if (
+      containerLargerThanImage.left ||
+      containerLargerThanImage.right ||
+      containerLargerThanImage.top ||
+      containerLargerThanImage.bottom
+    ) {
+      scaleX = cropScale[0];
+      scaleY = cropScale[1];
+    } else {
+      scaleX = currentScale[0];
+      scaleY = currentScale[1];
+    }
 
-    newEffectiveImageScale = [scaleX, scaleY];
+    imageContainerRef.current.setStyle({
+      width: scaleX * 100,
+      height: scaleY * 100
+    })
 
-    setEffectiveImageScale(newEffectiveImageScale);
+    setEffectiveImageScale([scaleX, scaleY]);
 
-    // Only apply transform if crop container is smaller than the image
+    // Got to improve the conditional here
     if (
       cropScale &&
       prevCropPosition.current &&
       cropPosition &&
-      imageContainerRef.current &&
-      (isCroppingWidth || isCroppingHeight) &&
-      ["top", "left"].includes(resizeHandle ?? "")
+      imageContainerRef.current
     ) {
-      // Calculate the new offset difference
+      // Calculate the new offset difference from previous position
       const offsetDiff: [number, number] = [
         cropPosition[0] - prevCropPosition.current[0],
         cropPosition[1] - prevCropPosition.current[1],
       ];
 
-      // Add the new offset to the accumulated offset
-      accumulatedOffset.current[0] += offsetDiff[0];
-      accumulatedOffset.current[1] += offsetDiff[1];
-
-      imageContainerRef.current.setStyle({
-        transformTranslateX: accumulatedOffset.current[0] * 10,
-        transformTranslateY: accumulatedOffset.current[1] * 10,
-      });
-      return;
-    } else {
-
-      // Got to add a conditional
-      // We also got to manage when the we are not cropping but the image is being expanded, we got to keep the image in the same position
-      // We got to do this by calculating the difference between the current and previous cropScale and then applying that difference to the accumulatedOffset
-      if (prevCropScale.current && cropScale) {
-        const scaleDiff = [
-          cropScale[0] + prevCropScale.current[0],
-          cropScale[1] + prevCropScale.current[1],
-        ];
-
-        accumulatedOffset.current[0] -= scaleDiff[0];
-        accumulatedOffset.current[1] -= scaleDiff[1];
-
-        imageContainerRef.current.setStyle({
-          transformTranslateX: accumulatedOffset.current[0] / 10,
-          transformTranslateY: accumulatedOffset.current[1] / 10,
-        });
+      if (resizeHandle == "right") {
+        if (containerLargerThanImage.right) {
+          accumulatedOffset.current[0] -= offsetDiff[0];
+          accumulatedOffset.current[1] += offsetDiff[0] * 100;
+        }
       }
+
+      if (resizeHandle == "left") {
+        if (!containerLargerThanImage.left) {
+          accumulatedOffset.current[0] += offsetDiff[0] * 200;
+        } else {
+          accumulatedOffset.current[1] -= offsetDiff[0] * 100;
+        }
+      }
+
+      if (resizeHandle == "top") {
+        if (!containerLargerThanImage.top) {
+          accumulatedOffset.current[1] -= offsetDiff[1] * 200;
+        }
+      }
+
+      // Apply the accumulated offset to the image container transform
+      imageContainerRef.current.setStyle({
+        transformTranslateX: accumulatedOffset.current[0],
+        transformTranslateY: accumulatedOffset.current[1],
+      });
     }
   }, [cropScale, cropPosition, currentScale]);
 
