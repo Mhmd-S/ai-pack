@@ -8,6 +8,9 @@ import HandlerGroup from "../Handler/HandlerGroup";
 import { button } from "leva";
 import { useControlsDecals } from "@/components/edit/MultiLeva";
 import { useState, useEffect, useRef } from "react";
+import { getImageDimensions } from '@/lib/utils';
+import { useImageDimensions } from '@/hooks/use-image-dimensions';
+import { useImageAspectRatio } from '@/hooks/use-image-aspect-ratio';
 
 interface ImageDecalProps {
   url: string;
@@ -46,6 +49,9 @@ const ImageDecal = ({
   const prevCropScale = useRef<[number, number] | null>(null);
   const imageRef = useRef<any>(null);
 
+
+  const { aspectRatio, isLoading: isLoadingAspectRatio } = useImageAspectRatio(url, 1);
+
   // This effect updates the previous cropScale after every change
   useEffect(() => {
     if (cropScale) {
@@ -56,16 +62,12 @@ const ImageDecal = ({
   // This calculates the difference between the current and previous cropScale
   // Logic works, but we got to change what metrics we use and how we calculate the difference
 
-  // Calculate initial dimensions based on image aspect ratio
-  const standardWidth = 0.2;
-  const standardHeight = 0.2; // Default to square, will be updated when image loads
-
   const levaConfig = {
     position: {
       value: [center.x, center.y, center.z],
     },
     scale: {
-      value: [standardWidth, standardHeight],
+      value: [0, 0],
     },
     rotation: { value: initialRotation, render: () => false },
     delete: button((get) => {
@@ -85,27 +87,36 @@ const ImageDecal = ({
 
   const isSelected = !!selectedUserDataStores.find((s) => s === store);
 
-  // Calculate and set effective image scale for rendering
-  const [effectiveImageScale, setEffectiveImageScale] = useState<
-    [number, number]
-  >([standardWidth, standardHeight]);
-
-  // This is used to store the store and isDecal in the imageContainerRef.current.interactionPanel.userData so it can display its store
+  // Combined effect for setting up userData and dimensions
   useEffect(() => {
     if (imageRef.current && imageContainerRef.current) {
+      // Set up userData
       imageRef.current.interactionPanel.userData = { store, isDecal: true };
-
+      
+      // Calculate dimensions based on aspect ratio
+      const defaultWidth = 1; // 1 unit in 3D space
+      const defaultHeight = defaultWidth / aspectRatio;
+      
+      const pixelWidth = defaultWidth * 25;
+      const pixelHeight = defaultHeight * 25;
+      
+      // Set both root and container to the same absolute dimensions
       rootRef.current.setStyle({
-        width: materialProps.scale[0] * 100,
-        height: materialProps.scale[0] * 100,
+        width: `${pixelWidth}px`,
+        height: `${pixelHeight}px`,
       });
 
       imageContainerRef.current.setStyle({
-        width: materialProps.scale[0] * 100,
-        height: materialProps.scale[0] * 100,
+        width: `${pixelWidth}px`,
+        height: `${pixelHeight}px`,
+      });
+
+      // Set the actual scale for the 3D object
+      set({
+        scale: [pixelWidth / 100, pixelHeight / 100]
       });
     }
-  }, []);
+  }, [aspectRatio, set, store]);
 
   const { bind, handleRotationUpdate } = useDecalDrag({
     id,
@@ -316,13 +327,6 @@ const ImageDecal = ({
       height: scaleY * 100,
     });
 
-    setEffectiveImageScale([scaleX, scaleY]);
-
-    imageContainerRef.current.setStyle({
-      width: scaleX * 100,
-      height: scaleY * 100,
-    });
-
     // Got to improve the conditional here
     if (
       cropScale &&
@@ -410,12 +414,14 @@ const ImageDecal = ({
           <Container
             ref={imageContainerRef}
             positionType="absolute"
+            borderColor={"blue"}
+            borderWidth={0.1}
           >
             <Image
               ref={imageRef}
-              positionType="relative"
               width="100%"
               height="100%"
+              positionType="relative"
               src={url}
               objectFit="fill"
             />

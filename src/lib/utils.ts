@@ -1,6 +1,7 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 import * as THREE from 'three';
+import { set } from "zod";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -70,4 +71,45 @@ export function getQuadrilateralArea(points: THREE.Vector3[]): number {
 	const d1 = new THREE.Vector3().subVectors(p2, p0);
 	const d2 = new THREE.Vector3().subVectors(p3, p1);
 	return d1.cross(d2).length() * 0.5;
+}
+
+
+export function getImageDimensions(url: string): Promise<{ width: number; height: number }> {
+  return new Promise((resolve, reject) => {
+    const imgElement = document.createElement('img');
+    
+    imgElement.onload = () => {
+      const dimensions = {
+        width: imgElement.naturalWidth,
+        height: imgElement.naturalHeight
+      };
+      resolve(dimensions);
+    };
+    
+    imgElement.onerror = () => {
+      console.error('Failed to load image for dimension calculation');
+      reject(new Error('Failed to load image'));
+    };
+    
+    imgElement.src = url;
+  });
+}
+
+export function getImageAspectRatio(url: string): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const img = document.createElement('img');
+    
+    img.onload = () => {
+      const aspectRatio = img.naturalWidth / img.naturalHeight;
+      img.remove(); // Clean up immediately
+      resolve(aspectRatio);
+    };
+    
+    img.onerror = () => {
+      img.remove();
+      reject(new Error('Failed to load image'));
+    };
+    
+    img.src = url;
+  });
 }
