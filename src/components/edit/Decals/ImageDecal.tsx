@@ -1,16 +1,13 @@
 import { useSelect } from "@react-three/drei";
 import { Image, Container, Root } from "@react-three/uikit";
 import RotationHandler from "../Handler/RotationHandler";
-
 import * as THREE from "three";
 import { useDecalDrag } from "@/hooks/useDecalDrag";
 import HandlerGroup from "../Handler/HandlerGroup";
 import { button } from "leva";
 import { useControlsDecals } from "@/components/edit/MultiLeva";
 import { useState, useEffect, useRef } from "react";
-import { getImageDimensions } from '@/lib/utils';
-import { useImageDimensions } from '@/hooks/use-image-dimensions';
-import { useImageAspectRatio } from '@/hooks/use-image-aspect-ratio';
+import { useImageAspectRatio } from "@/hooks/use-image-aspect-ratio";
 
 interface ImageDecalProps {
   url: string;
@@ -49,8 +46,10 @@ const ImageDecal = ({
   const prevCropScale = useRef<[number, number] | null>(null);
   const imageRef = useRef<any>(null);
 
-
-  const { aspectRatio, isLoading: isLoadingAspectRatio } = useImageAspectRatio(url, 1);
+  const { aspectRatio, isLoading: isLoadingAspectRatio } = useImageAspectRatio(
+    url,
+    1
+  );
 
   // This effect updates the previous cropScale after every change
   useEffect(() => {
@@ -92,14 +91,14 @@ const ImageDecal = ({
     if (imageRef.current && imageContainerRef.current) {
       // Set up userData
       imageRef.current.interactionPanel.userData = { store, isDecal: true };
-      
+
       // Calculate dimensions based on aspect ratio
       const defaultWidth = 1; // 1 unit in 3D space
       const defaultHeight = defaultWidth / aspectRatio;
-      
+
       const pixelWidth = defaultWidth * 25;
       const pixelHeight = defaultHeight * 25;
-      
+
       // Set both root and container to the same absolute dimensions
       rootRef.current.setStyle({
         width: `${pixelWidth}px`,
@@ -113,10 +112,10 @@ const ImageDecal = ({
 
       // Set the actual scale for the 3D object
       set({
-        scale: [pixelWidth / 100, pixelHeight / 100]
+        scale: [pixelWidth / 100, pixelHeight / 100],
       });
     }
-  }, [aspectRatio, set, store]);
+  }, [aspectRatio]);
 
   const { bind, handleRotationUpdate } = useDecalDrag({
     id,
@@ -302,7 +301,13 @@ const ImageDecal = ({
   }, [isSelected, id, onDelete]);
 
   useEffect(() => {
-    if (!cropScale) {
+    if (
+      !cropScale ||
+      !prevCropPosition.current ||
+      !cropPosition ||
+      !imageContainerRef.current ||
+      !rootRef.current
+    ) {
       return;
     }
 
@@ -327,52 +332,72 @@ const ImageDecal = ({
       height: scaleY * 100,
     });
 
-    // Got to improve the conditional here
-    if (
-      cropScale &&
-      prevCropPosition.current &&
-      cropPosition &&
-      imageContainerRef.current
-    ) {
-      // Calculate the new offset difference from previous position
-      const offsetDiff: [number, number] = [
-        cropPosition[0] - prevCropPosition.current[0],
-        cropPosition[1] - prevCropPosition.current[1],
-      ];
+    // Calculate the new offset difference from previous position
+    const offsetDiff: [number, number] = [
+      cropPosition[0] - prevCropPosition.current[0],
+      cropPosition[1] - prevCropPosition.current[1],
+    ];
 
-      if (resizeHandle == "right") {
-        if (containerLargerThanImage.right) {
-          accumulatedOffset.current[0] -= offsetDiff[0];
-          accumulatedOffset.current[1] += offsetDiff[0] * 100;
-        }
+    if (resizeHandle == "right") {
+      if (containerLargerThanImage.right) {
+        accumulatedOffset.current[0] -= offsetDiff[0];
+        accumulatedOffset.current[1] += offsetDiff[0] * 100;
       }
-
-      if (resizeHandle == "left") {
-        if (!containerLargerThanImage.left) {
-          accumulatedOffset.current[0] += offsetDiff[0] * 200;
-        } else {
-          accumulatedOffset.current[1] -= offsetDiff[0] * 100;
-        }
-      }
-
-      if (resizeHandle == "top") {
-        if (!containerLargerThanImage.top) {
-          accumulatedOffset.current[1] -= offsetDiff[1] * 200;
-        }
-      }
-
-      // Apply the accumulated offset to the image container transform
-      imageContainerRef.current.setStyle({
-        transformTranslateX: accumulatedOffset.current[0],
-        transformTranslateY: accumulatedOffset.current[1],
-      });
-
-      rootRef.current.setStyle({
-        width: cropScale[0] * 100,
-        height: cropScale[1] * 100,
-      });
     }
-  }, [cropScale, cropPosition, materialProps.scale]);
+
+    if (resizeHandle == "left") {
+      if (!containerLargerThanImage.left) {
+        accumulatedOffset.current[0] += offsetDiff[0] * 200;
+      } else {
+        accumulatedOffset.current[1] -= offsetDiff[0] * 100;
+      }
+    }
+
+    if (resizeHandle == "top") {
+      if (!containerLargerThanImage.top) {
+        accumulatedOffset.current[1] -= offsetDiff[1] * 200;
+      } else {
+        accumulatedOffset.current[0] += offsetDiff[1] * 100;
+        imageContainerRef.current.setStyle({
+          height: cropScale[1] * 100,
+          width: cropScale[1] * 100 * aspectRatio,
+        });
+        rootRef.current.setStyle({
+          height: cropScale[1] * 100,
+          width: cropScale[1] * 100 * aspectRatio,
+        });
+      }
+    }
+
+    if (resizeHandle == "bottom") {
+      if (!containerLargerThanImage.bottom) {
+        accumulatedOffset.current[1] = offsetDiff[1] * 100;
+      } else {
+        accumulatedOffset.current[0] -= offsetDiff[1] * 100;
+        imageContainerRef.current.setStyle({
+          width: scaleY * 100 * aspectRatio,
+          height: scaleY * 100,
+        });
+        rootRef.current.setStyle({
+          width: scaleY * 100 * aspectRatio,
+          height: scaleY * 100,
+        });
+      }
+    }
+
+    console.log(accumulatedOffset.current);
+
+    // Apply the accumulated offset to the image container transform
+    imageContainerRef.current.setStyle({
+      transformTranslateX: accumulatedOffset.current[0],
+      transformTranslateY: accumulatedOffset.current[1],
+    });
+
+    rootRef.current.setStyle({
+      width: cropScale[0] * 100,
+      height: cropScale[1] * 100,
+    });
+  }, [cropScale, cropPosition]);
 
   // Update the effect that tracks previous values
   useEffect(() => {
@@ -406,8 +431,8 @@ const ImageDecal = ({
       >
         <Root
           ref={rootRef}
-          borderWidth={0.1}
-          borderColor={isSelected ? "red" : hovered ? "red" : "transparent"}
+          borderWidth={isSelected || hovered ? 0.1 : 0}
+          borderColor={"red"}
           overflow="hidden"
           positionType="relative"
         >
@@ -419,6 +444,7 @@ const ImageDecal = ({
           >
             <Image
               ref={imageRef}
+              aspectRatio={aspectRatio}
               width="100%"
               height="100%"
               positionType="relative"
