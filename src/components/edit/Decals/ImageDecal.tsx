@@ -33,7 +33,6 @@ const ImageDecal = ({
   const [isRotating, setIsRotating] = useState(false);
   const [cropScale, setCropScale] = useState<[number, number] | null>(null);
   const [resizeHandle, setResizeHandle] = useState<string | null>(null);
-
   const [containerLargerThanImage, setContainerLargerThanImage] = useState({
     left: false,
     right: false,
@@ -43,23 +42,12 @@ const ImageDecal = ({
 
   const rootRef = useRef<any>(null);
   const imageContainerRef = useRef<any>(null);
-  const prevCropScale = useRef<[number, number] | null>(null);
   const imageRef = useRef<any>(null);
 
   const { aspectRatio, isLoading: isLoadingAspectRatio } = useImageAspectRatio(
     url,
     1
   );
-
-  // This effect updates the previous cropScale after every change
-  useEffect(() => {
-    if (cropScale) {
-      prevCropScale.current = cropScale;
-    }
-  }, [cropScale]);
-
-  // This calculates the difference between the current and previous cropScale
-  // Logic works, but we got to change what metrics we use and how we calculate the difference
 
   const levaConfig = {
     position: {
@@ -142,8 +130,6 @@ const ImageDecal = ({
   const [cropPosition, setCropPosition] = useState<[number, number] | null>(
     null
   );
-  const prevCropPosition = useRef<[number, number] | null>(null);
-  const accumulatedOffset = useRef<[number, number]>([0, 0]);
 
   // Update the handleUpdate function to track crop position
   const handleUpdate = (newProps: {
@@ -152,48 +138,30 @@ const ImageDecal = ({
     cropScale?: [number, number];
     resizeType: "corner" | "edge-x" | "edge-y";
     handlerId?: string;
-    handlerPosition?: [number, number];
   }) => {
     if (newProps.resizeType === "corner") {
       // Corner resizing: update actual image scale and clear crop
       setCropScale(null);
       setCropPosition(null);
-      // Reset accumulated offset when switching back to corner resizing
-      accumulatedOffset.current = [0, 0];
       set({ scale: newProps.scale, position: newProps.position });
     } else {
       // Edge resizing: update crop scale and position, keep image scale same
       setCropScale(newProps.cropScale || null);
 
       // Calculate crop position based on the resize type and handler
-      if (newProps.cropScale && newProps.handlerId) {
+      if (newProps.cropScale && newProps.handlerId && newProps.position) {
         const cropWidth = newProps.cropScale[0];
         const cropHeight = newProps.cropScale[1];
         const imageWidth = materialProps.scale[0];
         const imageHeight = materialProps.scale[1];
 
         let newCropPosition: [number, number] = [0, 0];
-
+          
         if (
           newProps.handlerId === "left" ||
           newProps.handlerId === "top-left" ||
           newProps.handlerId === "bottom-left"
         ) {
-          if (
-            newProps.handlerId === "left" &&
-            newProps.handlerPosition &&
-            imageWidth * -0.5 > newProps.handlerPosition.x
-          ) {
-            setContainerLargerThanImage((prevState) => ({
-              ...prevState,
-              left: true,
-            }));
-          } else {
-            setContainerLargerThanImage((prevState) => ({
-              ...prevState,
-              left: false,
-            }));
-          }
           // Left edge: crop position is negative (image extends left of crop center)
           newCropPosition[0] = -(imageWidth - cropWidth) / 2;
         }
@@ -203,21 +171,7 @@ const ImageDecal = ({
           newProps.handlerId === "top-right" ||
           newProps.handlerId === "bottom-right"
         ) {
-          if (
-            newProps.handlerId === "right" &&
-            newProps.handlerPosition &&
-            imageWidth * 0.5 < newProps.handlerPosition.x
-          ) {
-            setContainerLargerThanImage((prevState) => ({
-              ...prevState,
-              right: true,
-            }));
-          } else {
-            setContainerLargerThanImage((prevState) => ({
-              ...prevState,
-              right: false,
-            }));
-          }
+        
           // Right edge: crop position is positive (image extends right of crop center)
           newCropPosition[0] = (imageWidth - cropWidth) / 2;
         }
@@ -227,21 +181,6 @@ const ImageDecal = ({
           newProps.handlerId === "top-left" ||
           newProps.handlerId === "top-right"
         ) {
-          if (
-            newProps.handlerId === "top" &&
-            newProps.handlerPosition &&
-            imageHeight * 0.5 < newProps.handlerPosition.y
-          ) {
-            setContainerLargerThanImage((prevState) => ({
-              ...prevState,
-              top: true,
-            }));
-          } else {
-            setContainerLargerThanImage((prevState) => ({
-              ...prevState,
-              top: false,
-            }));
-          }
           // Top edge: crop position is positive (image extends above crop center)
           newCropPosition[1] = (imageHeight - cropHeight) / 2;
         }
@@ -251,31 +190,156 @@ const ImageDecal = ({
           newProps.handlerId === "bottom-left" ||
           newProps.handlerId === "bottom-right"
         ) {
-          if (
-            newProps.handlerId === "bottom" &&
-            newProps.handlerPosition &&
-            imageHeight * -0.5 > newProps.handlerPosition.y
-          ) {
-            setContainerLargerThanImage((prevState) => ({
-              ...prevState,
-              bottom: true,
-            }));
-          } else {
-            setContainerLargerThanImage((prevState) => ({
-              ...prevState,
-              bottom: false,
-            }));
-          }
           // Bottom edge: crop position is negative (image extends below crop center)
           newCropPosition[1] = -(imageHeight - cropHeight) / 2;
         }
 
         setCropPosition(newCropPosition);
-      }
 
+        // Detect if crop is expanding beyond image bounds
+        // Rectangle A (Image) properties
+        const imageCenter = materialProps.position; // [x, y, z]
+        
+        // Rectangle B (Crop) properties - crop is positioned relative to image center
+        const cropCenter: [number, number, number] = [
+          imageCenter[0] + newCropPosition[0], // absolute X = image center X + crop offset X
+          imageCenter[1] + newCropPosition[1], // absolute Y = image center Y + crop offset Y
+          imageCenter[2] // Z remains the same as image
+        ];
+
+        // Calculate extents for Image (Rectangle A)
+        const imageMinX = imageCenter[0] - imageWidth / 2;
+        const imageMaxX = imageCenter[0] + imageWidth / 2;
+        const imageMinY = imageCenter[1] - imageHeight / 2;
+        const imageMaxY = imageCenter[1] + imageHeight / 2;
+
+        // Calculate extents for Crop (Rectangle B)
+        const cropMinX = cropCenter[0] - cropWidth / 2;
+        const cropMaxX = cropCenter[0] + cropWidth / 2;
+        const cropMinY = cropCenter[1] - cropHeight / 2;
+        const cropMaxY = cropCenter[1] + cropHeight / 2;
+
+        // Check for expansion along X-axis
+        const xAxisExpansion = (cropMinX < imageMinX) || (cropMaxX > imageMaxX);
+
+        // Check for expansion along Y-axis
+        const yAxisExpansion = (cropMinY < imageMinY) || (cropMaxY > imageMaxY);
+
+        // Log the expansion detection results for debugging
+        console.log('Crop expansion detection:', {
+          xAxisExpansion,
+          yAxisExpansion,
+          cropBounds: { minX: cropMinX, maxX: cropMaxX, minY: cropMinY, maxY: cropMaxY },
+          imageBounds: { minX: imageMinX, maxX: imageMaxX, minY: imageMinY, maxY: imageMaxY },
+          cropCenter,
+          imageCenter,
+          
+        });
+      }
       set({ position: newProps.position });
+
+      
     }
   };
+
+  useEffect(() => {
+    // Guard clause: Only run when cropping is active.
+    if (
+      !cropScale ||
+      !cropPosition ||
+      !imageContainerRef.current ||
+      !rootRef.current
+    ) {
+      return;
+    }
+    
+    // Get dimensions in pixels for calculation (assuming 1 unit = 100px)
+    let imageWidth = materialProps.scale[0] * 100;
+    let imageHeight = materialProps.scale[1] * 100;
+    let cropWidth = cropScale[0] * 100;
+    let cropHeight = cropScale[1] * 100;
+
+    // --- Calculate container dimensions ---
+    let containerWidth = imageWidth;
+    let containerHeight = imageHeight;
+
+    // If container is larger than image in any direction, expand the container
+    if (containerLargerThanImage.left || containerLargerThanImage.right) {
+      containerWidth = Math.max(imageWidth, cropWidth);
+    }
+    if (containerLargerThanImage.top || containerLargerThanImage.bottom) {
+      containerHeight = Math.max(imageHeight, cropHeight);
+      containerWidth = Math.max(imageHeight, cropHeight) * aspectRatio;
+    }
+
+    // --- Absolute Position Calculation ---
+    // This converts the center-based offset (cropPosition) into a
+    // top-left based transformTranslate.
+    let transformX = imageContainerRef.current.getStyle().transformTranslateX;
+    let transformY = imageContainerRef.current.getStyle().transformTranslateY;
+
+    if (resizeHandle == "right") {
+      if (containerLargerThanImage.right) {
+        transformY = (cropWidth - containerWidth) / 2 + cropPosition[0] * 100;
+      }
+    }
+
+    if (resizeHandle == "left") {
+      if (!containerLargerThanImage.left) {
+        transformX = (cropWidth - containerWidth) / 2 + cropPosition[0] * 100;
+      } else {
+        transformX = (cropWidth - containerWidth) / 2 + cropPosition[0] * -2;
+        transformY = (cropWidth - containerWidth) / 2 + cropPosition[0] * -100;
+      }
+    }
+
+    if (resizeHandle == "top") {
+      if (!containerLargerThanImage.top) {
+        transformY = (cropHeight - containerHeight) / 2 + cropPosition[1] * 2;
+      } else {
+        transformY = (cropHeight - containerHeight) / 2 + cropPosition[1] / -1;
+        imageContainerRef.current.setStyle({
+          height: cropScale[1] * 100,
+          width: cropScale[1] * 100 * aspectRatio,
+        });
+        rootRef.current.setStyle({
+          height: cropScale[1] * 100,
+          width: cropScale[1] * 100 * aspectRatio,
+        });
+      }
+    }
+
+    if (resizeHandle == "bottom") {
+      if (!containerLargerThanImage.bottom) {
+        transformY = (cropHeight - containerHeight) / 2 + cropPosition[1] / -1;
+      } else {
+        transformY = (cropHeight - containerHeight) / 2 + cropPosition[1] * -2;
+        imageContainerRef.current.setStyle({
+          width: cropScale[1] * 100 * aspectRatio,
+          height: cropScale[1] * 100,
+        });
+        rootRef.current.setStyle({
+          width: cropScale[1] * 100 * aspectRatio,
+          height: cropScale[1] * 100,
+        });
+      }
+    }
+
+    // 1. Set the size of the cropping frame (the Root)
+    rootRef.current.setStyle({
+      width: cropWidth,
+      height: cropHeight,
+    });
+
+    // 2. The image container's size should match the expanded container size
+    imageContainerRef.current.setStyle({
+      width: containerWidth,
+      height: containerHeight,
+      // Apply the calculated absolute offset
+      transformTranslateX: transformX,
+      transformTranslateY: transformY,
+    });
+  }, [cropScale, cropPosition, materialProps.scale]); // Add materialProps.scale dependency
 
   // Custom setIsResizing function that also handles resize type
   const setIsResizingWithType = (resizing: boolean, handleId?: string) => {
@@ -299,112 +363,6 @@ const ImageDecal = ({
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [isSelected, id, onDelete]);
-
-  useEffect(() => {
-    if (
-      !cropScale ||
-      !prevCropPosition.current ||
-      !cropPosition ||
-      !imageContainerRef.current ||
-      !rootRef.current
-    ) {
-      return;
-    }
-
-    let scaleX;
-    let scaleY;
-
-    if (
-      containerLargerThanImage.left ||
-      containerLargerThanImage.right ||
-      containerLargerThanImage.top ||
-      containerLargerThanImage.bottom
-    ) {
-      scaleX = cropScale[0];
-      scaleY = cropScale[1];
-    } else {
-      scaleX = materialProps.scale[0];
-      scaleY = materialProps.scale[1];
-    }
-
-    imageContainerRef.current.setStyle({
-      width: scaleX * 100,
-      height: scaleY * 100,
-    });
-
-    // Calculate the new offset difference from previous position
-    const offsetDiff: [number, number] = [
-      cropPosition[0] - prevCropPosition.current[0],
-      cropPosition[1] - prevCropPosition.current[1],
-    ];
-
-    if (resizeHandle == "right") {
-      if (containerLargerThanImage.right) {
-        accumulatedOffset.current[0] -= offsetDiff[0];
-        accumulatedOffset.current[1] += offsetDiff[0] * 100;
-      }
-    }
-
-    if (resizeHandle == "left") {
-      if (!containerLargerThanImage.left) {
-        accumulatedOffset.current[0] += offsetDiff[0] * 200;
-      } else {
-        accumulatedOffset.current[1] -= offsetDiff[0] * 100;
-      }
-    }
-
-    if (resizeHandle == "top") {
-      if (!containerLargerThanImage.top) {
-        accumulatedOffset.current[1] -= offsetDiff[1] * 200;
-      } else {
-        accumulatedOffset.current[0] += offsetDiff[1] * 100;
-        imageContainerRef.current.setStyle({
-          height: cropScale[1] * 100,
-          width: cropScale[1] * 100 * aspectRatio,
-        });
-        rootRef.current.setStyle({
-          height: cropScale[1] * 100,
-          width: cropScale[1] * 100 * aspectRatio,
-        });
-      }
-    }
-
-    if (resizeHandle == "bottom") {
-      if (!containerLargerThanImage.bottom) {
-        accumulatedOffset.current[1] = offsetDiff[1] * 100;
-      } else {
-        accumulatedOffset.current[0] -= offsetDiff[1] * 100;
-        imageContainerRef.current.setStyle({
-          width: scaleY * 100 * aspectRatio,
-          height: scaleY * 100,
-        });
-        rootRef.current.setStyle({
-          width: scaleY * 100 * aspectRatio,
-          height: scaleY * 100,
-        });
-      }
-    }
-
-    console.log(accumulatedOffset.current);
-
-    // Apply the accumulated offset to the image container transform
-    imageContainerRef.current.setStyle({
-      transformTranslateX: accumulatedOffset.current[0],
-      transformTranslateY: accumulatedOffset.current[1],
-    });
-
-    rootRef.current.setStyle({
-      width: cropScale[0] * 100,
-      height: cropScale[1] * 100,
-    });
-  }, [cropScale, cropPosition]);
-
-  // Update the effect that tracks previous values
-  useEffect(() => {
-    if (cropPosition) {
-      prevCropPosition.current = cropPosition;
-    }
-  }, [cropPosition]);
 
   return (
     <>

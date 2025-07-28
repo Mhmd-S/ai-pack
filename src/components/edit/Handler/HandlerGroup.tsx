@@ -92,6 +92,7 @@ const HandlerGroup = ({
     initialScale: new THREE.Vector2(),
     initialHandlePosition: new THREE.Vector3(),
     inverseRotationMatrix: new THREE.Matrix4(),
+    handlerId: '',
   }).current;
 
   // This function is now for LOCAL space calculation
@@ -123,6 +124,8 @@ const HandlerGroup = ({
       handler.normalizedPosition,
       scale
     );
+
+    dragInfo.handlerId = handler.id;
 
     // CHANGED: Get the world rotation and invert it to transform movement into local space
     const rotationMatrix = new THREE.Matrix4().makeRotationFromEuler(
