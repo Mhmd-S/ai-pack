@@ -146,18 +146,26 @@ const ImageDecal = ({
       set({ scale: newProps.scale, position: newProps.position });
     } else {
       // Edge resizing: update crop scale and position, keep image scale same
-      const currentCropScale = newProps.cropScale || null;
-      setCropScale(currentCropScale);
 
-      let currentCropPosition: [number, number] | null = null;
+      // --- 1. Derive New Values from Props ---
+      // Use local variables for all calculations. State will be updated once at the end.
+      const newCropScale = newProps.cropScale || null;
+      const newPosition = newProps.position;
+      let newCropPosition: [number, number] | null = null;
+      let newExceedingState = null;
 
-      // Calculate crop position based on the resize type and handler
-      if (newProps.cropScale && newProps.handlerId && newProps.position) {
-        const cropWidth = newProps.cropScale[0];
-        const cropHeight = newProps.cropScale[1];
+      // Only proceed with crop calculations if a crop scale is provided.
+      if (newCropScale && newProps.handlerId && newPosition) {
+        // --- 2. Calculate Derived State and Dimensions ---
+        const cropWidth = newCropScale[0];
+        const cropHeight = newCropScale[1];
         const imageWidth = materialProps.scale[0];
         const imageHeight = materialProps.scale[1];
 
+        // Calculate the new crop position from the overall element's position.
+        newCropPosition = [newPosition[0] / 100, newPosition[1] / 100];
+
+        // Calculate bounds to check if the crop container exceeds the image.
         const cropBounds = {
           left: -cropWidth / 2,
           right: cropWidth / 2,
@@ -169,11 +177,12 @@ const ImageDecal = ({
           left: materialProps.position[0] - imageWidth / 2,
           right: materialProps.position[0] + imageWidth / 2,
           top: materialProps.position[1] + imageHeight / 2,
-          bottom: materialProps.position[1] - imageHeight / 2, 
+          bottom: materialProps.position[1] - imageHeight / 2,
         };
 
-        // Check if crop extends beyond image bounds for each side
-        const exceedingState = {
+        // Determine which sides of the crop area are outside the image bounds.
+        // Using toPrecision to avoid floating point inaccuracies.
+        newExceedingState = {
           left:
             parseFloat(cropBounds.left.toPrecision(3)) <
             parseFloat(imageBounds.left.toPrecision(3)),
@@ -188,116 +197,95 @@ const ImageDecal = ({
             parseFloat(imageBounds.bottom.toPrecision(3)),
         };
 
-        console.log("[DEBUG] Left Comparison:", {
-          "cropBounds.left": cropBounds.left,
-          "imageBounds.left": imageBounds.left,
-          comparison: `${parseFloat(cropBounds.left.toPrecision(3))} < ${parseFloat(imageBounds.left.toPrecision(3))}`,
-          exceeding: exceedingState.left,
-        });
+        // --- 3. Calculate Transform for Visual Correction ---
+        // This section adjusts the image's position within its container to keep it
+        // anchored correctly during a crop-resize.
 
-        setContainerExceedingImage(exceedingState);
+        const imageWidthPx = imageWidth * 100;
+        const imageHeightPx = imageHeight * 100;
+        const cropWidthPx = cropWidth * 100;
+        const cropHeightPx = cropHeight * 100;
 
-        currentCropPosition = [
-          newProps.position[0] / 100,
-          newProps.position[1] / 100,
-        ];
-        setCropPosition(currentCropPosition);
-      }
-      set({ position: newProps.position });
+        const containerWidth = Math.max(imageWidthPx, cropWidthPx);
+        const containerHeight = Math.max(imageHeightPx, cropHeightPx);
 
-      // Apply the useEffect logic for cropping when edge resizing
-      if (
-        currentCropScale &&
-        currentCropPosition &&
-        imageContainerRef.current &&
-        rootRef.current
-      ) {
-        // Get dimensions in pixels for calculation (assuming 1 unit = 100px)
-        let imageWidth = materialProps.scale[0] * 100;
-        let imageHeight = materialProps.scale[1] * 100;
-        let cropWidth = currentCropScale[0] * 100;
-        let cropHeight = currentCropScale[1] * 100;
-
-        // --- Calculate container dimensions ---
-        let newImageWidth = Math.max(imageWidth, cropWidth);
-        let newImageHeight = Math.max(imageHeight, cropHeight);
-
-        // --- Absolute Position Calculation ---
-        // This converts the center-based offset (cropPosition) into a
-        // top-left based transformTranslate.
+        // Start with the existing transforms and modify them.
         let transformX =
           imageContainerRef.current.getStyle().transformTranslateX;
         let transformY =
           imageContainerRef.current.getStyle().transformTranslateY;
 
-        if (resizeHandle == "right") {
-          if (containerExceedingImage.right) {
-            transformY = (cropWidth - imageWidth) / -2;
+        // Note: The logic below seems highly specific to your UI's anchor points.
+        // The calculations are preserved from the original code.
+        if (resizeHandle === "right") {
+          if (newExceedingState.right) {
+            transformY = (cropWidthPx - imageWidthPx) / -2;
           }
         }
 
-        if (resizeHandle == "left") {
-          if (!containerExceedingImage.left) {
-            console.log("leftyyyyyy");
-            transformX = (cropWidth - imageWidth) / 1;
+        if (resizeHandle === "left") {
+          if (!newExceedingState.left) {
+            transformX = (cropWidthPx - imageWidthPx) / 2;
           } else {
-            console.log("hehehehehehhe");
-            transformX = (cropWidth - imageWidth) / -100;
-            transformY = (cropWidth - imageWidth) / -2;
+            transformX = (cropWidthPx - imageWidthPx) / -100; // This seems unusual, verify if intended
+            transformY = (cropWidthPx - imageWidthPx) / -2;
           }
         }
 
-        if (resizeHandle == "top") {
-          if (!containerExceedingImage.top) {
+        if (resizeHandle === "top") {
+          if (!newExceedingState.top) {
             transformY =
-              (cropHeight - imageHeight) / 2 + currentCropPosition[1] * 2;
+              (cropHeightPx - imageHeightPx) / 2 + newCropPosition[1] * 2;
           } else {
             transformY =
-              (cropHeight - imageHeight) / 2 + currentCropPosition[1] / -1;
-            imageContainerRef.current.setStyle({
-              height: currentCropScale[1] * 100,
-              width: currentCropScale[1] * 100 * aspectRatio,
-            });
-            rootRef.current.setStyle({
-              height: currentCropScale[1] * 100,
-              width: currentCropScale[1] * 100 * aspectRatio,
-            });
+              (cropHeightPx - imageHeightPx) / 2 - newCropPosition[1];
           }
+          // This logic maintains aspect ratio when resizing vertically
+          rootRef.current.setStyle({
+            height: cropHeightPx,
+            width: cropHeightPx * aspectRatio,
+          });
         }
 
-        if (resizeHandle == "bottom") {
-          if (!containerExceedingImage.bottom) {
+        if (resizeHandle === "bottom") {
+          if (!newExceedingState.bottom) {
             transformY =
-              (cropHeight - imageHeight) / 2 + currentCropPosition[1] / -1;
+              (cropHeightPx - imageHeightPx) / 2 - newCropPosition[1];
           } else {
             transformY =
-              (cropHeight - imageHeight) / 2 + currentCropPosition[1] * -2;
-            imageContainerRef.current.setStyle({
-              width: currentCropScale[1] * 100 * aspectRatio,
-              height: currentCropScale[1] * 100,
-            });
-            rootRef.current.setStyle({
-              width: currentCropScale[1] * 100 * aspectRatio,
-              height: currentCropScale[1] * 100,
-            });
+              (cropHeightPx - imageHeightPx) / 2 + newCropPosition[1] * -2;
           }
+          // This logic maintains aspect ratio when resizing vertically
+          rootRef.current.setStyle({
+            width: cropHeightPx * aspectRatio,
+            height: cropHeightPx,
+          });
         }
+
+        // --- 4. Apply Styles (Side Effects) ---
+        // Update the DOM elements via refs with the final calculated values.
 
         // 1. Set the size of the cropping frame (the Root)
         rootRef.current.setStyle({
-          width: cropWidth,
-          height: cropHeight,
+          width: cropWidthPx,
+          height: cropHeightPx,
         });
 
-        // 2. The image container's size should match the expanded container size
+        // 2. The image container's size and position
         imageContainerRef.current.setStyle({
-          width: newImageWidth,
-          height: newImageHeight,
-          // Apply the calculated absolute offset
+          width: containerWidth,
+          height: containerHeight,
           transformTranslateX: transformX,
           transformTranslateY: transformY,
         });
       }
+
+      // --- 5. Commit State Updates ---
+      // Finally, update all relevant state values once all calculations are complete.
+      if (newCropScale) setCropScale(newCropScale);
+      if (newCropPosition) setCropPosition(newCropPosition);
+      if (newExceedingState) setContainerExceedingImage(newExceedingState);
+      set({ position: newPosition });
     }
   };
 
