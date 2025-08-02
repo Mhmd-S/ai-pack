@@ -40,6 +40,8 @@ export const useDecalDrag = ({
   setIsMoving,
 }: UseDecalDragProps) => {
   const hasInitialized = useRef(false);
+  const intersectionPoint = useRef(new THREE.Vector3());
+
 
   // Get access to R3F's state, including camera and raycaster
   const { camera, raycaster } = useThree();
@@ -171,11 +173,11 @@ export const useDecalDrag = ({
       setIsMoving?.(true);
 
       // On every subsequent drag event, raycast onto the plane
-      const intersectionPoint = new THREE.Vector3();
-      raycaster.ray.intersectPlane(dragPlane.current, intersectionPoint);
+
+      raycaster.ray.intersectPlane(dragPlane.current, intersectionPoint.current);
 
       // Apply the offset to maintain relative position
-      intersectionPoint.add(dragOffset.current);
+      intersectionPoint.current.add(dragOffset.current);
 
       // Calculate effective dimensions after rotation
       const currentScale = materialProps.scale || [1, 1];
@@ -197,33 +199,33 @@ export const useDecalDrag = ({
         // XY plane is dominant (normal along Z)
         const clampedX = Math.max(
           boundingBox.min.x + halfWidth,
-          Math.min(boundingBox.max.x - halfWidth, intersectionPoint.x)
+          Math.min(boundingBox.max.x - halfWidth, intersectionPoint.current.x)
         );
         const clampedY = Math.max(
           boundingBox.min.y + halfHeight,
-          Math.min(boundingBox.max.y - halfHeight, intersectionPoint.y)
+          Math.min(boundingBox.max.y - halfHeight, intersectionPoint.current.y)
         );
         newPosition = [clampedX, clampedY, materialProps.position[2]];
       } else if (size.y < size.x && size.y < size.z) {
         // XZ plane is dominant (normal along Y)
         const clampedX = Math.max(
           boundingBox.min.x + halfWidth,
-          Math.min(boundingBox.max.x - halfWidth, intersectionPoint.x)
+          Math.min(boundingBox.max.x - halfWidth, intersectionPoint.current.x)
         );
         const clampedZ = Math.max(
           boundingBox.min.z + halfDepth,
-          Math.min(boundingBox.max.z - halfDepth, intersectionPoint.z)
+          Math.min(boundingBox.max.z - halfDepth, intersectionPoint.current.z)
         );
         newPosition = [clampedX, materialProps.position[1], clampedZ];
       } else {
         // YZ plane is dominant (normal along X)
         const clampedY = Math.max(
           boundingBox.min.y + halfHeight,
-          Math.min(boundingBox.max.y - halfHeight, intersectionPoint.y)
+          Math.min(boundingBox.max.y - halfHeight, intersectionPoint.current.y)
         );
         const clampedZ = Math.max(
           boundingBox.min.z + halfDepth,
-          Math.min(boundingBox.max.z - halfDepth, intersectionPoint.z)
+          Math.min(boundingBox.max.z - halfDepth, intersectionPoint.current.z)
         );
         newPosition = [materialProps.position[0], clampedY, clampedZ];
       }

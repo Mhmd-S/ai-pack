@@ -34,7 +34,6 @@ const DesignEdit3D: React.FC<OBJModelEditProps> = ({
 	}, [selected]);
 
 	const handleSelectionChange = (selectedObjects: Object3D[]) => {
-		console.log(selectedObjects);
 		setSelected(selectedObjects);
 	};
 
