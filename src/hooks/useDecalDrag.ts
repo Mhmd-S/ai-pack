@@ -162,11 +162,9 @@ export const useDecalDrag = ({
 
   const bind = useDrag(
     ({ event, down, first, last }) => {
-
-      event.stopPropagation(); 
+      event.stopPropagation();
 
       if (last) {
-        console.log("last");
         setIsMoving?.(false);
         return;
       }
@@ -206,7 +204,6 @@ export const useDecalDrag = ({
         // Don't update position on first event, just set up the plane
         return;
       }
-
 
       // On every subsequent drag event, raycast onto the plane
 

@@ -263,10 +263,7 @@ const HandlerGroup = ({
       );
     } else if (cropScale) {
       // Edge resizing: update crop scale for container clipping
-      updateProps.cropScale = [
-        Math.max(0.01, cropScale[0]),
-        Math.max(0.01, cropScale[1]),
-      ];
+      updateProps.cropScale = cropScale;
 
       updateProps.handlerPosition = getPointInLocalSpace(
         handler.normalizedPosition,
