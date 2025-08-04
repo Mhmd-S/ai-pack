@@ -21,8 +21,6 @@ interface UseDecalDragProps {
   setIsMoving?: (isMoving: boolean) => void;
 }
 
-
-
 export const useDecalDrag = ({
   id,
   isSelected,
@@ -41,7 +39,6 @@ export const useDecalDrag = ({
 }: UseDecalDragProps) => {
   const hasInitialized = useRef(false);
   const intersectionPoint = useRef(new THREE.Vector3());
-
 
   // Get access to R3F's state, including camera and raycaster
   const { camera, raycaster } = useThree();
@@ -84,7 +81,10 @@ export const useDecalDrag = ({
   const dragOffset = useRef(new THREE.Vector3());
 
   // Helper function to calculate effective dimensions after rotation
-  const getEffectiveDimensions = (scale: [number, number], rotation: [number, number, number]) => {
+  const getEffectiveDimensions = (
+    scale: [number, number],
+    rotation: [number, number, number]
+  ) => {
     const [width, height] = scale;
     const [rx, ry, rz] = rotation;
 
@@ -101,18 +101,50 @@ export const useDecalDrag = ({
 
     // Get the 8 corners of the box
     const corners = [
-      new THREE.Vector3(originalBox.min.x, originalBox.min.y, originalBox.min.z),
-      new THREE.Vector3(originalBox.max.x, originalBox.min.y, originalBox.min.z),
-      new THREE.Vector3(originalBox.min.x, originalBox.max.y, originalBox.min.z),
-      new THREE.Vector3(originalBox.max.x, originalBox.max.y, originalBox.min.z),
-      new THREE.Vector3(originalBox.min.x, originalBox.min.y, originalBox.max.z),
-      new THREE.Vector3(originalBox.max.x, originalBox.min.y, originalBox.max.z),
-      new THREE.Vector3(originalBox.min.x, originalBox.max.y, originalBox.max.z),
-      new THREE.Vector3(originalBox.max.x, originalBox.max.y, originalBox.max.z),
+      new THREE.Vector3(
+        originalBox.min.x,
+        originalBox.min.y,
+        originalBox.min.z
+      ),
+      new THREE.Vector3(
+        originalBox.max.x,
+        originalBox.min.y,
+        originalBox.min.z
+      ),
+      new THREE.Vector3(
+        originalBox.min.x,
+        originalBox.max.y,
+        originalBox.min.z
+      ),
+      new THREE.Vector3(
+        originalBox.max.x,
+        originalBox.max.y,
+        originalBox.min.z
+      ),
+      new THREE.Vector3(
+        originalBox.min.x,
+        originalBox.min.y,
+        originalBox.max.z
+      ),
+      new THREE.Vector3(
+        originalBox.max.x,
+        originalBox.min.y,
+        originalBox.max.z
+      ),
+      new THREE.Vector3(
+        originalBox.min.x,
+        originalBox.max.y,
+        originalBox.max.z
+      ),
+      new THREE.Vector3(
+        originalBox.max.x,
+        originalBox.max.y,
+        originalBox.max.z
+      ),
     ];
 
     // Transform all corners
-    const transformedCorners = corners.map(corner => 
+    const transformedCorners = corners.map((corner) =>
       corner.applyMatrix4(rotationMatrix)
     );
 
@@ -129,15 +161,19 @@ export const useDecalDrag = ({
   };
 
   const bind = useDrag(
-    ({ event, down, first }) => {
+    ({ event, down, first, last }) => {
 
-      event.stopPropagation();
+      event.stopPropagation(); 
 
+      if (last) {
+        console.log("last");
+        setIsMoving?.(false);
+        return;
+      }
       if (isResizing || isRotating || !isSelected || disableDrag) return;
 
       const e = event as unknown as ThreeEvent<PointerEvent>;
 
-      setIsMoving?.(false);
       // Only proceed if actively dragging (mouse/pointer is down)
       if (!down) {
         onPointerDown?.();
@@ -145,6 +181,7 @@ export const useDecalDrag = ({
       }
 
       if (first) {
+        setIsMoving?.(true);
         // On first drag event, calculate the drag plane
 
         // 1. Find intersection point on the DecalMesh
@@ -170,11 +207,13 @@ export const useDecalDrag = ({
         return;
       }
 
-      setIsMoving?.(true);
 
       // On every subsequent drag event, raycast onto the plane
 
-      raycaster.ray.intersectPlane(dragPlane.current, intersectionPoint.current);
+      raycaster.ray.intersectPlane(
+        dragPlane.current,
+        intersectionPoint.current
+      );
 
       // Apply the offset to maintain relative position
       intersectionPoint.current.add(dragOffset.current);
