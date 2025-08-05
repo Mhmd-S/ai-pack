@@ -33,7 +33,7 @@ const ImageDecal = ({
   const [isRotating, setIsRotating] = useState(false);
   const [isMoving, setIsMoving] = useState(false);
 
-  const cropScale = useRef<[number, number] | null>(null);
+  const positionOfImage = useRef<[number, number]>([0, 0]);
   const hoverRef = useRef(false);
   const rootRef = useRef<any>(null);
   const imageContainerRef = useRef<any>(null);
@@ -73,6 +73,9 @@ const ImageDecal = ({
     scale: {
       value: [0, 0],
     },
+    imageScale: {
+      value: [0, 0],
+    },
     rotation: { value: initialRotation, render: () => false },
     delete: button((get) => {
       onDelete(id);
@@ -90,8 +93,6 @@ const ImageDecal = ({
   ) as [any, any, (props: any) => void];
 
   const isSelected = !!selectedUserDataStores.find((s) => s === store);
-
-  const positionOfImage = useRef<[number, number]>([0, 0]);
 
   useEffect(() => {
     if (!isMoving) return;
@@ -135,9 +136,27 @@ const ImageDecal = ({
         width: pixelWidth,
         height: pixelHeight,
       };
+
       // Set the actual scale for the 3D object
+
+      const imageRelativePos = imageContainerRef.current?.center.v;
+
+      if (!imageRelativePos) return;
+
+      const imagePositionRelativeToCrop = [
+        parseFloat(
+          (materialProps.position[0] + imageRelativePos[0] / 100).toFixed(3)
+        ),
+        parseFloat(
+          (materialProps.position[1] + imageRelativePos[1] / 100).toFixed(3)
+        ),
+      ];
+
+      positionOfImage.current = imagePositionRelativeToCrop as [number, number];
+
       set({
         scale: [pixelWidth / 100, pixelHeight / 100],
+        imageScale: [pixelWidth / 100, pixelHeight / 100],
       });
     }
   }, [aspectRatio]);
@@ -171,22 +190,28 @@ const ImageDecal = ({
     cropWidth: number,
     cropHeight: number
   ) => {
+
     const imageBounds = {
-      left: (positionOfImage.current[0] - imageWidth / 2).toFixed(3),
-      right: (positionOfImage.current[0] + imageWidth / 2).toFixed(3),
-      top: (positionOfImage.current[1] + imageHeight / 2).toFixed(3),
-      bottom: (positionOfImage.current[1] - imageHeight / 2).toFixed(3),
+      left: parseFloat(
+        (positionOfImage.current[0] - imageWidth / 2).toFixed(3)
+      ),
+      right: parseFloat(
+        (positionOfImage.current[0] + imageWidth / 2).toFixed(3)
+      ),
+      top: parseFloat(
+        (positionOfImage.current[1] + imageHeight / 2).toFixed(3)
+      ),
+      bottom: parseFloat(
+        (positionOfImage.current[1] - imageHeight / 2).toFixed(3)
+      ),
     };
 
     const cropBounds = {
-      left: (positionOfCrop[0] - cropWidth / 2).toFixed(3),
-      right: (positionOfCrop[0] + cropWidth / 2).toFixed(3),
-      top: (positionOfCrop[1] + cropHeight / 2).toFixed(3),
-      bottom: (positionOfCrop[1] - cropHeight / 2).toFixed(3),
+      left: parseFloat((positionOfCrop[0] - cropWidth / 2).toFixed(3)),
+      right: parseFloat((positionOfCrop[0] + cropWidth / 2).toFixed(3)),
+      top: parseFloat((positionOfCrop[1] + cropHeight / 2).toFixed(3)),
+      bottom: parseFloat((positionOfCrop[1] - cropHeight / 2).toFixed(3)),
     };
-
-    console.log("Crop Bounds", cropBounds);
-    console.log("Image Bounds", imageBounds);
 
     const exceedingEdges = {
       left: imageBounds.left < cropBounds.left,
@@ -199,30 +224,40 @@ const ImageDecal = ({
   };
 
   const calculateTransformsDelta = (
-    (
-      imageBounds: {
-        left: number;
-        right: number;
-        top: number;
-        bottom: number;
-      },
-      cropBounds: {
-        left: number;
-        right: number;
-        top: number;
-        bottom: number;
+    imageBounds: {
+      left: number;
+      right: number;
+      top: number;
+      bottom: number;
+    },
+    cropBounds: {
+      left: number;
+      right: number;
+      top: number;
+      bottom: number;
+    },
+    exceedingEdges: {
+      left: boolean;
+      right: boolean;
+      top: boolean;
+      bottom: boolean;
+    },
+    handlerId: string
+  ) => {
+    let transformX =
+      imageContainerRef.current?.getStyle().transformTranslateX || 0;
+    let transformY =
+      imageContainerRef.current?.getStyle().transformTranslateY || 0;
+
+    if (handlerId === "left") {
+      if (exceedingEdges.left) {
+        transformX = (cropBounds.left - imageBounds.left) * -100;
+        transformY = (imageBounds.bottom - cropBounds.bottom) * -100;
       }
-    ) => {
-      let transformX =
-        imageContainerRef.current?.getStyle().transformTranslateX;
-      let transformY =
-        imageContainerRef.current?.getStyle().transformTranslateY;
-
-
-      
-
-      return { transformX, transformY };
     }
+
+    return { transformX, transformY };
+  };
 
   const handleUpdate = (newProps: {
     scale?: [number, number];
@@ -247,7 +282,6 @@ const ImageDecal = ({
 
       if (newProps.resizeType === "corner") {
         // Corner resizing: update actual image scale and clear crop
-        cropScale.current = null;
         set({ scale: newProps.scale, position: newProps.position });
       } else {
         // Edge resizing: update crop scale and position, keep image scale same
@@ -269,8 +303,8 @@ const ImageDecal = ({
           // Calculate dimensions
           const cropWidth = newCropScale[0];
           const cropHeight = newCropScale[1];
-          const imageWidth = materialProps.scale[0];
-          const imageHeight = materialProps.scale[1];
+          const imageWidth = materialProps.imageScale[0];
+          const imageHeight = materialProps.imageScale[1];
 
           // Calculate the new crop position from the overall element's position.
           const newCropPosition: [number, number] = [
@@ -278,7 +312,7 @@ const ImageDecal = ({
             newRootPosition?.[1],
           ];
 
-          const { exceedingEdges } = calculateBounds(
+          const { exceedingEdges, imageBounds, cropBounds } = calculateBounds(
             newCropPosition,
             imageWidth,
             imageHeight,
@@ -292,39 +326,38 @@ const ImageDecal = ({
           const cropWidthPx = cropWidth * 100;
           const cropHeightPx = cropHeight * 100;
 
-          // New Image Width and Height, takes either the crop or image width/height, depends on which is larger
-          const containerWidth = Math.max(imageWidthPx, cropWidthPx);
-          const containerHeight = Math.max(imageHeightPx, cropHeightPx);
+          console.log("Image Width", imageWidthPx);
+          console.log("Crop Width", cropWidthPx);
 
-          console.log("Exceeding Edges", exceedingEdges);
+          const newImageWidth = Math.max(imageWidthPx, cropWidthPx);
+          const newImageHeight = Math.max(imageHeightPx, cropHeightPx);
+          console.log("The larger chosen is", newImageWidth)
 
           // Calculate the transform for the image
           const { transformX, transformY } = calculateTransformsDelta(
-            newProps.handlerId,
+            imageBounds,
+            cropBounds,
             exceedingEdges,
-            cropWidthPx,
-            cropHeightPx,
-            imageWidthPx,
-            imageHeightPx,
-            newCropPosition
+            newProps.handlerId
           );
 
           // Queue styles for next frame
           rootStylesRef.current = { width: cropWidthPx, height: cropHeightPx };
 
           containerStylesRef.current = {
-            width: containerWidth,
-            height: containerHeight,
+            width: newImageWidth,
+            height: newImageWidth,
             transformTranslateX: transformX,
             transformTranslateY: transformY,
           };
-        }
 
-        // Update state
-        if (newCropScale) {
-          cropScale.current = newCropScale;
+          set({
+            position: newRootPosition,
+            scale: newCropScale,
+            imageScale: [newImageWidth/100, newImageHeight/100],
+          });
+
         }
-        set({ position: newRootPosition });
       }
 
       // Clear the pending update
@@ -361,6 +394,7 @@ const ImageDecal = ({
 
     if (containerStylesRef.current && imageContainerRef.current) {
       const styles = { ...containerStylesRef.current };
+      console.log("Styles", styles.width)
       // Convert numeric values to pixel strings for style application
       if (styles.width !== undefined && typeof styles.width === "number") {
         styles.width = `${styles.width}px`;
@@ -423,7 +457,7 @@ const ImageDecal = ({
       {isSelected && (
         <>
           <HandlerGroup
-            scale={cropScale.current ? cropScale.current : materialProps.scale}
+            scale={materialProps.scale}
             position={[
               materialProps.position[0],
               materialProps.position[1],
@@ -441,7 +475,7 @@ const ImageDecal = ({
               materialProps.position[1],
               materialProps.position[2],
             ]}
-            scale={cropScale.current ? cropScale.current : materialProps.scale}
+            scale={materialProps.scale}
             rotation={materialProps.rotation}
             normal={normal}
             onUpdate={handleRotationUpdate}
