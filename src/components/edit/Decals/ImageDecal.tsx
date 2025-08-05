@@ -40,18 +40,6 @@ const ImageDecal = ({
   const imageRef = useRef<any>(null);
   const groupRef = useRef<THREE.Group>(null);
 
-  // Style state refs for useFrame updates
-  const rootStylesRef = useRef<{
-    width?: string | number;
-    height?: string | number;
-  } | null>(null);
-  const containerStylesRef = useRef<{
-    width?: string | number;
-    height?: string | number;
-    transformTranslateX?: number;
-    transformTranslateY?: number;
-  } | null>(null);
-
   // Update queue ref for useFrame
   const pendingUpdateRef = useRef<{
     scale?: [number, number];
@@ -74,6 +62,9 @@ const ImageDecal = ({
       value: [0, 0],
     },
     imageScale: {
+      value: [0, 0],
+    },
+    refrenceScale: {
       value: [0, 0],
     },
     rotation: { value: initialRotation, render: () => false },
@@ -111,7 +102,12 @@ const ImageDecal = ({
     ];
 
     positionOfImage.current = imagePositionRelativeToCrop as [number, number];
-  }, [isMoving, materialProps.position]);
+  }, [
+    isMoving,
+    materialProps.position,
+    materialProps.scale,
+    materialProps.imageScale,
+  ]);
 
   // Combined effect for setting up userData and dimensions
   useEffect(() => {
@@ -127,15 +123,15 @@ const ImageDecal = ({
       const pixelHeight = defaultHeight * 25;
 
       // Queue style updates for useFrame
-      rootStylesRef.current = {
+      rootRef.current.setStyle({
         width: pixelWidth,
         height: pixelHeight,
-      };
+      });
 
-      containerStylesRef.current = {
+      imageContainerRef.current.setStyle({
         width: pixelWidth,
         height: pixelHeight,
-      };
+      });
 
       // Set the actual scale for the 3D object
 
@@ -157,6 +153,7 @@ const ImageDecal = ({
       set({
         scale: [pixelWidth / 100, pixelHeight / 100],
         imageScale: [pixelWidth / 100, pixelHeight / 100],
+        refrenceScale: [pixelWidth / 100, pixelHeight / 100],
       });
     }
   }, [aspectRatio]);
@@ -190,6 +187,20 @@ const ImageDecal = ({
     cropWidth: number,
     cropHeight: number
   ) => {
+    const imageBoundsToRefrence = {
+      left: parseFloat(
+        (positionOfImage.current[0] - imageWidth / 2).toFixed(3)
+      ),
+      right: parseFloat(
+        (positionOfImage.current[0] + imageWidth / 2).toFixed(3)
+      ),
+      top: parseFloat(
+        (positionOfImage.current[1] + imageHeight / 2).toFixed(3)
+      ),
+      bottom: parseFloat(
+        (positionOfImage.current[1] - imageHeight / 2).toFixed(3)
+      ),
+    };
 
     const imageBounds = {
       left: parseFloat(
@@ -214,13 +225,13 @@ const ImageDecal = ({
     };
 
     const exceedingEdges = {
-      left: imageBounds.left < cropBounds.left,
+      left: imageBounds.left > cropBounds.left,
       right: imageBounds.right < cropBounds.right,
-      top: imageBounds.top < cropBounds.top,
+      top: imageBounds.top > cropBounds.top,
       bottom: imageBounds.bottom < cropBounds.bottom,
     };
 
-    return { cropBounds, imageBounds, exceedingEdges };
+    return { cropBounds, imageBounds, exceedingEdges, imageBoundsToRefrence };
   };
 
   const calculateTransformsDelta = (
@@ -249,11 +260,11 @@ const ImageDecal = ({
     let transformY =
       imageContainerRef.current?.getStyle().transformTranslateY || 0;
 
-    if (handlerId === "left") {
-      if (exceedingEdges.left) {
-        transformX = (cropBounds.left - imageBounds.left) * -100;
-        transformY = (imageBounds.bottom - cropBounds.bottom) * -100;
-      }
+    if (exceedingEdges.left || exceedingEdges.right) {
+      transformY = (imageBounds.bottom - cropBounds.bottom) * -100;
+    }
+    if (!exceedingEdges.left && handlerId === "left") {
+      transformX = (cropBounds.left - imageBounds.left) * -100;
     }
 
     return { transformX, transformY };
@@ -269,6 +280,7 @@ const ImageDecal = ({
     // Queue the update to be processed in useFrame
     pendingUpdateRef.current = newProps;
   };
+
   // Custom setIsResizing function that also handles resize type
   const setIsResizingWithType = (resizing: boolean, handleId?: string) => {
     setIsResizing(resizing);
@@ -282,6 +294,7 @@ const ImageDecal = ({
 
       if (newProps.resizeType === "corner") {
         // Corner resizing: update actual image scale and clear crop
+        // Get the scale of transformation for the scale and apply it to the refrence scale
         set({ scale: newProps.scale, position: newProps.position });
       } else {
         // Edge resizing: update crop scale and position, keep image scale same
@@ -308,14 +321,19 @@ const ImageDecal = ({
 
           // Calculate the new crop position from the overall element's position.
           const newCropPosition: [number, number] = [
-            newRootPosition?.[0],
-            newRootPosition?.[1],
+            newRootPosition?.[0] || 0,
+            newRootPosition?.[1] || 0,
           ];
 
-          const { exceedingEdges, imageBounds, cropBounds } = calculateBounds(
+          const {
+            exceedingEdges,
+            cropBounds,
+            imageBoundsToRefrence,
+            imageBounds,
+          } = calculateBounds(
             newCropPosition,
-            imageWidth,
-            imageHeight,
+            materialProps.refrenceScale[0],
+            materialProps.refrenceScale[1],
             cropWidth,
             cropHeight
           );
@@ -326,12 +344,36 @@ const ImageDecal = ({
           const cropWidthPx = cropWidth * 100;
           const cropHeightPx = cropHeight * 100;
 
-          console.log("Image Width", imageWidthPx);
-          console.log("Crop Width", cropWidthPx);
+          let newImageWidth = imageWidthPx;
+          let newImageHeight = imageHeightPx;
 
-          const newImageWidth = Math.max(imageWidthPx, cropWidthPx);
-          const newImageHeight = Math.max(imageHeightPx, cropHeightPx);
-          console.log("The larger chosen is", newImageWidth)
+          let oppositeEdge = newProps.handlerId === "left" ? "right" : "left";
+
+          // Check if the handler is not the one that is exceeding the edge
+          if (
+            exceedingEdges[newProps.handlerId as keyof typeof exceedingEdges] &&
+            !exceedingEdges[oppositeEdge as keyof typeof exceedingEdges]
+          ) {
+
+            const offset = (imageBoundsToRefrence[
+              oppositeEdge as keyof typeof imageBoundsToRefrence
+            ] -
+              cropBounds[oppositeEdge as keyof typeof cropBounds]);
+
+            newImageWidth =
+              Math.max(imageWidthPx + (offset * (newProps.handlerId === "left" ? 1 : -1)*2), cropWidthPx);
+
+            newImageHeight =
+              Math.max((imageWidthPx + offset) / aspectRatio, cropHeightPx);
+          }
+
+          if (
+            exceedingEdges[newProps.handlerId as keyof typeof exceedingEdges] &&
+            exceedingEdges[oppositeEdge as keyof typeof exceedingEdges]
+          ) {
+            newImageWidth = cropWidthPx;
+            newImageHeight = cropHeightPx;
+          }
 
           // Calculate the transform for the image
           const { transformX, transformY } = calculateTransformsDelta(
@@ -342,21 +384,23 @@ const ImageDecal = ({
           );
 
           // Queue styles for next frame
-          rootStylesRef.current = { width: cropWidthPx, height: cropHeightPx };
+          rootRef.current.setStyle({
+            width: cropWidthPx,
+            height: cropHeightPx,
+          });
 
-          containerStylesRef.current = {
+          imageContainerRef.current.setStyle({
             width: newImageWidth,
             height: newImageWidth,
-            transformTranslateX: transformX,
-            transformTranslateY: transformY,
-          };
+            transformTranslateX: 0,
+            transformTranslateY: 0,
+          });
 
           set({
             position: newRootPosition,
             scale: newCropScale,
-            imageScale: [newImageWidth/100, newImageHeight/100],
+            imageScale: [newImageWidth / 100, newImageHeight / 100],
           });
-
         }
       }
 
@@ -376,34 +420,6 @@ const ImageDecal = ({
         materialProps.rotation[1],
         materialProps.rotation[2]
       );
-    }
-
-    // Apply pending style updates
-    if (rootStylesRef.current && rootRef.current) {
-      const styles = { ...rootStylesRef.current };
-      // Convert numeric values to pixel strings for style application
-      if (styles.width !== undefined && typeof styles.width === "number") {
-        styles.width = `${styles.width}px`;
-      }
-      if (styles.height !== undefined && typeof styles.height === "number") {
-        styles.height = `${styles.height}px`;
-      }
-      rootRef.current.setStyle(styles);
-      rootStylesRef.current = null;
-    }
-
-    if (containerStylesRef.current && imageContainerRef.current) {
-      const styles = { ...containerStylesRef.current };
-      console.log("Styles", styles.width)
-      // Convert numeric values to pixel strings for style application
-      if (styles.width !== undefined && typeof styles.width === "number") {
-        styles.width = `${styles.width}px`;
-      }
-      if (styles.height !== undefined && typeof styles.height === "number") {
-        styles.height = `${styles.height}px`;
-      }
-      imageContainerRef.current.setStyle(styles);
-      containerStylesRef.current = null;
     }
   });
 
