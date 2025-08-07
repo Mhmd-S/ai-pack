@@ -50,31 +50,7 @@ const handlers: HandlerConfig[] = [
     normalizedPosition: [0.5, -0.5],
     type: "corner",
     cursor: "nwse-resize",
-  },
-  {
-    id: "top",
-    normalizedPosition: [0, 0.5],
-    type: "edge-y",
-    cursor: "ns-resize",
-  },
-  {
-    id: "bottom",
-    normalizedPosition: [0, -0.5],
-    type: "edge-y",
-    cursor: "ns-resize",
-  },
-  {
-    id: "left",
-    normalizedPosition: [-0.5, 0],
-    type: "edge-x",
-    cursor: "ew-resize",
-  },
-  {
-    id: "right",
-    normalizedPosition: [0.5, 0],
-    type: "edge-x",
-    cursor: "ew-resize",
-  },
+  }
 ];
 
 const HandlerGroup = ({
