@@ -161,22 +161,20 @@ export const useDecalDrag = ({
   };
 
   const bind = useDrag(
-    ({ event, down, first, last }) => {
+    ({ event, down, first, last, dragging }) => {
       event.stopPropagation();
 
-      if (last) {
-        setIsMoving?.(false);
-        return;
-      }
       if (isResizing || isRotating || !isSelected || disableDrag) return;
 
-      const e = event as unknown as ThreeEvent<PointerEvent>;
-
-      // Only proceed if actively dragging (mouse/pointer is down)
-      if (!down) {
+      console.log("Dragging", dragging);
+      if (dragging) {
+        setIsMoving?.(true);
+      } else {
+        setIsMoving?.(false);
         onPointerDown?.();
-        return;
       }
+
+      const e = event as unknown as ThreeEvent<PointerEvent>;
 
       if (first) {
         setIsMoving?.(true);

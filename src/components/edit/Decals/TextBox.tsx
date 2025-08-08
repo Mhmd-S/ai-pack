@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, useMemo } from "react";
+import { useRef, useState, useEffect, useMemo, ComponentRef } from "react";
 import {
   Text,
   Input,
@@ -54,11 +54,11 @@ const TextBox = ({
   resizeType = null,
 }: TextBoxProps) => {
   const [text, setText] = useState(initialText);
-  const inputRef = useRef<any>(null);
-  const textRef = useRef<any>(null);
-  const containerRef = useRef<any>(null);
+  const inputRef = useRef<ComponentRef<typeof Input>>(null);
+  const textRef = useRef<ComponentRef<typeof Text>>(null);
+  const containerRef = useRef<ComponentRef<typeof Container>>(null);
   const clickedInsideRef = useRef(false);
-  const rootRef = useRef<any>(null);
+  const rootRef = useRef<ComponentRef<typeof Root>>(null);
 
   const { fontProps } = useFonts();
 
@@ -82,31 +82,34 @@ const TextBox = ({
   }, []);
 
   // Memoized font family and weight parsing
-  const { fontFamilyName, fontWeight, finalFontFamily, finalFontWeight } = useMemo(() => {
-    const { family: fontFamilyName, weight: fontWeight } = parseFontKey(fontFamily);
+  const { fontFamilyName, fontWeight, finalFontFamily, finalFontWeight } =
+    useMemo(() => {
+      const { family: fontFamilyName, weight: fontWeight } =
+        parseFontKey(fontFamily);
 
-    // Check if the font family exists in fontProps
-    const fontExists = fontProps[fontFamilyName] && fontProps[fontFamilyName][fontWeight];
+      // Check if the font family exists in fontProps
+      const fontExists =
+        fontProps[fontFamilyName] && fontProps[fontFamilyName][fontWeight];
 
-    // Use fallback font family and weight if the requested one doesn't exist
-    const finalFontFamily = fontExists ? fontFamilyName : "poppins";
-    const finalFontWeight = fontExists ? fontWeight : "normal";
+      // Use fallback font family and weight if the requested one doesn't exist
+      const finalFontFamily = fontExists ? fontFamilyName : "poppins";
+      const finalFontWeight = fontExists ? fontWeight : "normal";
 
-    // Map string weights to numeric values for the UI components
-    const fontWeightMap: Record<string, number> = {
-      light: 300,
-      normal: 400,
-      bold: 700,
-    };
+      // Map string weights to numeric values for the UI components
+      const fontWeightMap: Record<string, number> = {
+        light: 300,
+        normal: 400,
+        bold: 700,
+      };
 
-    return {
-      fontFamilyName,
-      fontWeight,
-      fontExists,
-      finalFontFamily,
-      finalFontWeight: fontWeightMap[finalFontWeight] || 400,
-    };
-  }, [fontFamily, fontProps, parseFontKey]);
+      return {
+        fontFamilyName,
+        fontWeight,
+        fontExists,
+        finalFontFamily,
+        finalFontWeight: fontWeightMap[finalFontWeight] || 400,
+      };
+    }, [fontFamily, fontProps, parseFontKey]);
 
   useEffect(() => {
     if (!inputRef.current || !textRef.current) return;
@@ -132,7 +135,6 @@ const TextBox = ({
       fontFamily: fontFamilyName,
       fontWeight: 400,
     });
-
   }, [fontFamilyName, fontWeight]);
 
   // Register the textRef to the store
@@ -156,6 +158,12 @@ const TextBox = ({
       });
     }
   }, [isEditing, alignText]);
+
+  useEffect(() => {
+    if (inputRef?.current && isEditing) {
+      inputRef.current.focus();
+    }
+  }, [isEditing, inputRef.current]);
 
   // useEffect for font Size -> Scale. When the size changes, we need to update the scale
   useEffect(() => {
@@ -339,7 +347,6 @@ const TextBox = ({
     const displayColor = color;
 
     return {
-      ref: inputRef,
       value: text,
       onValueChange: handleInputChange,
       multiline: true,
@@ -387,7 +394,7 @@ const TextBox = ({
         <Container {...containerProps}>
           <FontFamilyProvider {...fontProps}>
             {isEditing && isSelected ? (
-              <Input {...getInputProps()} />
+              <Input ref={inputRef} {...getInputProps()} />
             ) : (
               <Text {...getTextProps()}>{text}</Text>
             )}

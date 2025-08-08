@@ -70,10 +70,10 @@ const TextDecal = ({
       value: [center.x, center.y, center.z],
     },
     scale: {
-      value: [0.15, 0.04],
+      value: [0.20, 0.04],
     },
     size: {
-      value: 16,
+      value: 20,
     },
     color: {
       value: "#000000",
@@ -116,9 +116,10 @@ const TextDecal = ({
   const isSelected = !!selectedUserDataStores.find((s) => s === store);
 
   const toggleEditing = async () => {
-    if (isMoving || isResizing || isRotating || !isSelected)
+    if (isResizing || isRotating || !isSelected)
       return;
-    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    await new Promise((resolve) => setTimeout(resolve, 150));
     setIsEditing(!isEditing);
   };
 
