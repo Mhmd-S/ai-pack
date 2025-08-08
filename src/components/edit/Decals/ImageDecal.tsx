@@ -194,7 +194,20 @@ const ImageDecal = ({
     if (!isSelected) return;
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (isSelected && (event.key === "Delete" || event.key === "Backspace")) {
+      const active = document.activeElement as HTMLElement | null;
+      const tag = active?.tagName?.toLowerCase();
+      const isEditableTarget = !!(
+        active &&
+        (active.isContentEditable ||
+          active.getAttribute('role') === 'textbox' ||
+          tag === 'input' ||
+          tag === 'textarea' ||
+          tag === 'select')
+      );
+
+      if (isEditableTarget) return;
+
+      if (isSelected && (event.key === 'Delete' || event.key === 'Backspace')) {
         event.preventDefault();
         onDelete(id);
       }

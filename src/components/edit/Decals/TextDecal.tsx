@@ -32,32 +32,42 @@ const TextDecal = ({
   const [isEditing, setIsEditing] = useState(false);
   const [hovered, setHover] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
-  const [resizeType, setResizeType] = useState<'corner' | 'edge-x' | 'edge-y' | null>(null);
+  const [resizeType, setResizeType] = useState<
+    "corner" | "edge-x" | "edge-y" | null
+  >(null);
   const [isRotating, setIsRotating] = useState(false);
   const [isMoving, setIsMoving] = useState(false);
-  const [currentFontFamily, setCurrentFontFamily] = useState('inter');
-  const [availableWeights, setAvailableWeights] = useState<Record<string, string>>({});
+  const [currentFontFamily, setCurrentFontFamily] = useState("inter");
+  const [availableWeights, setAvailableWeights] = useState<
+    Record<string, string>
+  >({});
 
   const { getAvailableFamilies } = useFonts();
 
   // Create font options for Leva - convert kebab-case to title case for display
-  const fontOptions = getAvailableFamilies().reduce((acc, fontFamily) => {
-    const displayName = fontFamily
-      .split('-')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ');
-    acc[displayName] = fontFamily;
-    return acc;
-  }, {} as Record<string, string>);
+  const fontOptions = getAvailableFamilies().reduce(
+    (acc, fontFamily) => {
+      const displayName = fontFamily
+        .split("-")
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" ");
+      acc[displayName] = fontFamily;
+      return acc;
+    },
+    {} as Record<string, string>
+  );
 
   // Function to get available weights for a font family
   const getAvailableWeights = (fontFamily: string): Record<string, string> => {
     // All fonts have the same weights based on the WEIGHTS constant
-    return WEIGHTS.reduce((acc, weight) => {
-      const displayName = weight.charAt(0).toUpperCase() + weight.slice(1);
-      acc[displayName] = weight;
-      return acc;
-    }, {} as Record<string, string>);
+    return WEIGHTS.reduce(
+      (acc, weight) => {
+        const displayName = weight.charAt(0).toUpperCase() + weight.slice(1);
+        acc[displayName] = weight;
+        return acc;
+      },
+      {} as Record<string, string>
+    );
   };
 
   // Initialize available weights on mount
@@ -70,7 +80,7 @@ const TextDecal = ({
       value: [center.x, center.y, center.z],
     },
     scale: {
-      value: [0.20, 0.04],
+      value: [0.2, 0.04],
     },
     size: {
       value: 20,
@@ -91,7 +101,7 @@ const TextDecal = ({
       options: availableWeights,
       onChange: (value: string) => {
         // Handle font weight change if needed
-        console.log('Font weight changed to:', value);
+        // console.log('Font weight changed to:', value);
       },
     },
     "Align Text": {
@@ -116,8 +126,7 @@ const TextDecal = ({
   const isSelected = !!selectedUserDataStores.find((s) => s === store);
 
   const toggleEditing = async () => {
-    if (isResizing || isRotating || !isSelected)
-      return;
+    if (isResizing || isRotating || !isSelected) return;
 
     await new Promise((resolve) => setTimeout(resolve, 150));
     setIsEditing(!isEditing);
@@ -150,7 +159,10 @@ const TextDecal = ({
   };
 
   // Custom setIsResizing function that also handles resize type
-  const setIsResizingWithType = (resizing: boolean, type: 'corner' | 'edge-x' | 'edge-y' | null = null) => {
+  const setIsResizingWithType = (
+    resizing: boolean,
+    type: "corner" | "edge-x" | "edge-y" | null = null
+  ) => {
     setIsResizing(resizing);
     setResizeType(resizing ? type : null);
   };
@@ -166,6 +178,19 @@ const TextDecal = ({
     if (!isSelected) setIsEditing(false);
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      const active = document.activeElement as HTMLElement | null;
+      const tag = active?.tagName?.toLowerCase();
+      const isEditableTarget = !!(
+        active &&
+        (active.isContentEditable ||
+          active.getAttribute("role") === "textbox" ||
+          tag === "input" ||
+          tag === "textarea" ||
+          tag === "select")
+      );
+
+      if (isEditableTarget) return;
+
       if (
         !isEditing &&
         isSelected &&

@@ -166,7 +166,6 @@ export const useDecalDrag = ({
 
       if (isResizing || isRotating || !isSelected || disableDrag) return;
 
-      console.log("Dragging", dragging);
       if (dragging) {
         setIsMoving?.(true);
       } else {
