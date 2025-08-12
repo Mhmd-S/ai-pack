@@ -1,6 +1,7 @@
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import Handler from "./Handler";
+import { Container } from "@react-three/uikit";
 
 interface HandlerConfig {
   id: string;
@@ -10,10 +11,14 @@ interface HandlerConfig {
 }
 
 interface HandlerGroupProps {
-  position: [number, number, number];
   scale: [number, number];
+  position: [number, number, number];
   rotation: [number, number, number];
   normal: THREE.Vector3;
+  aspectRatio: number;
+  positionRight: number;
+  positionTop: number;
+  store: any;
   onUpdate: (newProps: {
     scale?: [number, number];
     position?: [number, number, number];
@@ -29,38 +34,42 @@ interface HandlerGroupProps {
 const handlers: HandlerConfig[] = [
   {
     id: "top-left",
-    normalizedPosition: [-0.5, 0.5],
+    normalizedPosition: [0, 0],
     type: "corner",
     cursor: "nwse-resize",
   },
   {
     id: "top-right",
-    normalizedPosition: [0.5, 0.5],
+    normalizedPosition: [1, 0],
     type: "corner",
     cursor: "nesw-resize",
   },
   {
     id: "bottom-left",
-    normalizedPosition: [-0.5, -0.5],
+    normalizedPosition: [0, 1],
     type: "corner",
     cursor: "nesw-resize",
   },
   {
     id: "bottom-right",
-    normalizedPosition: [0.5, -0.5],
+    normalizedPosition: [1, 1],
     type: "corner",
     cursor: "nwse-resize",
-  }
+  },
 ];
 
 const HandlerGroup = ({
-  position,
   scale,
+  position,
   rotation,
   normal,
+  aspectRatio,
+  positionRight,
+  positionTop,
   onUpdate,
   onHover,
   setIsResizing,
+  store,
 }: HandlerGroupProps) => {
   const dragInfo = useRef({
     pivotPoint: new THREE.Vector3(),
@@ -68,8 +77,15 @@ const HandlerGroup = ({
     initialScale: new THREE.Vector2(),
     initialHandlePosition: new THREE.Vector3(),
     inverseRotationMatrix: new THREE.Matrix4(),
-    handlerId: '',
+    handlerId: "",
   }).current;
+  const containerRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (containerRef.current) {
+      containerRef.current.interactionPanel.userData = { store, isDecal: true };
+    }
+  }, []);
 
   // This function is now for LOCAL space calculation
   const getPointInLocalSpace = (
@@ -255,21 +271,25 @@ const HandlerGroup = ({
   };
 
   return (
-    <group
-      position={new THREE.Vector3(position[0], position[1], position[2])}
-      rotation={new THREE.Euler(rotation[0], rotation[1], rotation[2])}
+    <Container
+      width={"100%"}
+      height={"100%"}
+      positionType="absolute"
+      zIndexOffset={{ major: 1 }}
     >
+      <Container
+        positionType="relative"
+        width="100%"
+        height="100%"
+        overflow="visible"
+        ref={containerRef}
+      >
       {handlers.map((handler) => {
-        // Determine visual scale for edge handlers to make them look like bars
-        const visualScale: [number, number, number] = [1, 1, 1];
-        if (handler.type === "edge-x") visualScale[1] = 2.5;
-        if (handler.type === "edge-y") visualScale[0] = 2.5;
-
         return (
           <Handler
             key={handler.id}
             normal={normal}
-            position={getPointInLocalSpace(handler.normalizedPosition, scale)}
+            position={handler.normalizedPosition}
             cursor={handler.cursor}
             onHover={onHover}
             onDragStart={() => handleDragStart(handler)}
@@ -278,7 +298,8 @@ const HandlerGroup = ({
           />
         );
       })}
-    </group>
+      </Container>
+    </Container>
   );
 };
 

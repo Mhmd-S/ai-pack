@@ -2,10 +2,11 @@ import React, { useRef, useCallback, useState, useEffect } from "react";
 import { useDrag } from "@use-gesture/react";
 import * as THREE from "three";
 import { useThree } from "@react-three/fiber";
-import { Billboard, Circle, useCursor } from "@react-three/drei";
+import { useCursor } from "@react-three/drei";
+import { Container } from "@react-three/uikit";
 
 interface HandlerProps {
-  position: THREE.Vector3;
+  position: [number, number];
   cursor: string;
   normal: THREE.Vector3;
   onDragStart: () => void;
@@ -113,16 +114,19 @@ const Handler = ({
   }, {});
 
   return (
-    <Billboard
-      position={position}
+    <Container
+      positionLeft={`${position[0] * 100}%`}
+      positionTop={`${position[1] * 100}%`}
+      width={1}
+      height={1}
+      positionType="absolute"
+      backgroundColor="red"
+      borderRadius={100}
       {...bind()}
       onPointerOver={handlePointerOver}
       onPointerOut={handlePointerOut}
-    >
-      <Circle args={[0.01, 24]}>
-        <meshBasicMaterial color="#000000" transparent depthTest={false} />
-      </Circle>
-    </Billboard>
+
+    />
   );
 };
 

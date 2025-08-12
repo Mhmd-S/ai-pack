@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useMemo } from "react";
+import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import { useSelect, Edges, useCursor } from "@react-three/drei";
 import { useControlsFaceMesh } from "@/components/edit/MultiLeva";
 import { button } from "leva";
@@ -8,11 +8,13 @@ import ImageDecal from "./Decals/ImageDecal";
 import TextDecal from "./Decals/TextDecal";
 import { calculateFaceDetails } from "@/lib/three/calculate-face-details";
 import { useImageDrop } from "@/hooks/use-image-drop";
+import { Image, Root } from "@react-three/uikit";
 
 interface FaceMeshProps {
   geometry: THREE.BufferGeometry;
   material: THREE.Material;
   text: string;
+  size: THREE.Vector3;
 }
 
 const FaceMesh = ({ geometry }: FaceMeshProps) => {
@@ -21,6 +23,20 @@ const FaceMesh = ({ geometry }: FaceMeshProps) => {
   const [hovered, setHover] = useState(false);
   const [images, setImages] = useState<Record<string, string>>({});
   const [texts, setTexts] = useState<Record<string, string>>({});
+  const [details, setDetails] = useState<any>(null);
+  const [isInitialised, setIsInitialised] = useState(false);
+  const rootRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (rootRef.current && !isInitialised) {
+      // Set up userData
+      rootRef.current.interactionPanel.userData = { store };
+      setDetails(
+        meshRef.current ? calculateFaceDetails(meshRef.current) : null
+      );
+      setIsInitialised(true);
+    }
+  }, []);
 
   const selectedUserDataStores = useSelect().map((sel) => sel.userData.store); // Renamed for clarity
 
@@ -37,10 +53,6 @@ const FaceMesh = ({ geometry }: FaceMeshProps) => {
   useCursor(hovered);
 
   // Calculate face details when the mesh is selected
-  const details = useMemo(
-    () => (meshRef.current ? calculateFaceDetails(meshRef.current) : null),
-    [meshRef.current]
-  );
 
   // Handle image drop
   const onImageDrop = useCallback((imageUrl: string) => {
@@ -61,22 +73,22 @@ const FaceMesh = ({ geometry }: FaceMeshProps) => {
   // Handle image add
   const addImage = useCallback(() => {
     // Create a file input element
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+
     // Handle file selection
     input.onchange = (event) => {
       const file = (event.target as HTMLInputElement).files?.[0];
       if (file) {
         // Create a URL for the selected image
         const imageUrl = URL.createObjectURL(file);
-        
+
         // Add the image using the existing onImageDrop logic
         onImageDrop(imageUrl);
       }
     };
-    
+
     // Trigger the file picker
     input.click();
   }, [onImageDrop]);
@@ -105,9 +117,6 @@ const FaceMesh = ({ geometry }: FaceMeshProps) => {
       <mesh
         ref={meshRef} // Assign the ref to the mesh
         geometry={geometry}
-        onPointerOver={(e) => (e.stopPropagation(), setHover(true))}
-        onPointerOut={() => setHover(false)}
-        userData={{ store }}
       >
         <Edges
           ref={edgesRef as any}
@@ -124,9 +133,32 @@ const FaceMesh = ({ geometry }: FaceMeshProps) => {
           side={THREE.DoubleSide}
           color={rgbToHex((materialProps as any)?.color || defaultColor)}
         />
+      </mesh>
 
-        {meshRef.current &&
-          Object.entries(texts).map(([id, text]) => (
+      <group
+        position={[
+          (details?.faceCenter.x ?? 0) +
+            0.01 * Math.sign(details?.faceCenter.x ?? 0),
+          (details?.faceCenter.y ?? 0) +
+            0.01 * Math.sign(details?.faceCenter.y ?? 0),
+          (details?.faceCenter.z ?? 0) +
+            0.01 * Math.sign(details?.faceCenter.z ?? 0),
+        ]}
+        rotation={[
+          details?.rotation[0] ?? 0,
+          details?.rotation[1] ?? 0,
+          details?.rotation[2] ?? 0,
+        ]}
+        onPointerOver={(e) => (e.stopPropagation(), setHover(true))}
+        onPointerOut={() => setHover(false)}
+      >
+        <Root
+          ref={rootRef}
+          positionType="relative"
+          width={details?.size[details?.horizontalAxis] * 100 ?? 0}
+          height={details?.size[details?.verticalAxis] * 100 ?? 0}
+        >
+          {Object.entries(texts).map(([id, text]) => (
             <TextDecal
               key={`${text}-${id}`}
               id={id}
@@ -141,8 +173,7 @@ const FaceMesh = ({ geometry }: FaceMeshProps) => {
             />
           ))}
 
-        {meshRef.current &&
-          Object.entries(images).map(([id, image]) => (
+          {Object.entries(images).map(([id, image]) => (
             <ImageDecal
               key={`${image}-${id}`}
               id={id}
@@ -156,7 +187,8 @@ const FaceMesh = ({ geometry }: FaceMeshProps) => {
               onDelete={removeImage}
             />
           ))}
-      </mesh>
+        </Root>
+      </group>
     </>
   );
 };

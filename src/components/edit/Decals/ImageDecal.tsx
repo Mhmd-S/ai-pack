@@ -1,12 +1,12 @@
 import { useSelect } from "@react-three/drei";
-import { Image, Container, Root } from "@react-three/uikit";
+import { Image, Container } from "@react-three/uikit";
 import RotationHandler from "../Handler/RotationHandler";
 import * as THREE from "three";
 import { useDecalDrag } from "@/hooks/useDecalDrag";
 import HandlerGroup from "../Handler/HandlerGroup";
 import { button } from "leva";
 import { useControlsDecals } from "@/components/edit/MultiLeva";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useImageAspectRatio } from "@/hooks/use-image-aspect-ratio";
 import { useFrame } from "@react-three/fiber";
 
@@ -34,16 +34,52 @@ const ImageDecal = ({
   const [isMoving, setIsMoving] = useState(false);
 
   const hoverRef = useRef(false);
-  const rootRef = useRef<any>(null);
   const imageContainerRef = useRef<any>(null);
   const imageRef = useRef<any>(null);
-  const groupRef = useRef<THREE.Group>(null);
 
   // Update queue ref for useFrame - simplified for corner resizing only
   const pendingUpdateRef = useRef<{
     scale?: [number, number];
     position?: [number, number, number];
   } | null>(null);
+
+  // Determine the dominant plane of the face (same logic as useDecalDrag)
+  const { horizontalAxis, verticalAxis, xMultiplier, yMultiplier } =
+    useMemo(() => {
+      const size = new THREE.Vector3();
+      boundingBox.getSize(size);
+
+      // If Z is the smallest dimension -> XY plane is dominant (normal along Z)
+      if (size.z < size.x && size.z < size.y) {
+        return {
+          horizontalAxis: 0,
+          verticalAxis: 1,
+          xMultiplier: Math.cos(initialRotation[1]) > 0 ? 100 : -100,
+          yMultiplier: Math.cos(initialRotation[2]) > 0 ? -100 : 100,
+        }; // X, Y
+      }
+
+      // If Y is the smallest dimension -> XZ plane is dominant (normal along Y)
+      if (size.y < size.x && size.y < size.z) {
+        return {
+          horizontalAxis: 0,
+          verticalAxis: 2,
+          xMultiplier: Math.cos(initialRotation[0]) > 0 ? 100 : -100,
+          yMultiplier: Math.cos(initialRotation[1]) > 0 ? 100 : -100,
+        }; // X, Z
+      }
+
+      // Otherwise -> YZ plane is dominant (normal along X)
+      return {
+        horizontalAxis: 2,
+        verticalAxis: 1,
+        xMultiplier:
+          Math.cos(initialRotation[1]) * Math.sign(initialRotation[1]) * -1 > 0
+            ? 100
+            : -100,
+        yMultiplier: Math.cos(initialRotation[2]) > 0 ? -100 : 100,
+      }; // Z, Y
+    }, []);
 
   const { aspectRatio, isLoading: isLoadingAspectRatio } = useImageAspectRatio(
     url,
@@ -57,7 +93,7 @@ const ImageDecal = ({
     scale: {
       value: [0, 0],
     },
-    rotation: { value: initialRotation, render: () => false },
+    rotation: { value: initialRotation },
     delete: button((get) => {
       onDelete(id);
     }),
@@ -68,9 +104,8 @@ const ImageDecal = ({
   // @ts-ignore - useControlsDecals has incorrect typing for hiddenControls parameter
   const [store, materialProps, set] = useControlsDecals(
     selectedUserDataStores,
-    levaConfig,
+    levaConfig
     // @ts-ignore
-    ["rotation"] // Hide rotation controls
   ) as [any, any, (props: any) => void];
 
   const isSelected = !!selectedUserDataStores.find((s) => s === store);
@@ -79,7 +114,7 @@ const ImageDecal = ({
   useEffect(() => {
     if (imageRef.current && imageContainerRef.current) {
       // Set up userData
-      imageRef.current.interactionPanel.userData = { store, isDecal: true };
+      imageContainerRef.current.interactionPanel.userData = { store, isDecal: true };
 
       // Calculate dimensions based on aspect ratio
       const defaultWidth = 1; // 1 unit in 3D space
@@ -89,14 +124,11 @@ const ImageDecal = ({
       const pixelHeight = defaultHeight * 25;
 
       // Set style dimensions
-      rootRef.current.setStyle({
-        width: pixelWidth,
-        height: pixelHeight,
-      });
-
       imageContainerRef.current.setStyle({
         width: pixelWidth,
         height: pixelHeight,
+        transformTranslateX: "-50%",
+        transformTranslateY: "-50%",
       });
 
       // Set the scale for the 3D object
@@ -108,9 +140,10 @@ const ImageDecal = ({
 
   const { bind, handleRotationUpdate } = useDecalDrag({
     id,
-    center,
+    center: new THREE.Vector3(0, 0, 0),
     boundingBox,
     initialRotation,
+    normal,
     isSelected,
     onDelete,
     materialProps,
@@ -152,12 +185,6 @@ const ImageDecal = ({
         const pixelWidth = newWidth * 100;
         const pixelHeight = newHeight * 100;
 
-        // Update styles to maintain aspect ratio
-        rootRef.current?.setStyle({
-          width: pixelWidth,
-          height: pixelHeight,
-        });
-
         imageContainerRef.current?.setStyle({
           width: pixelWidth,
           height: pixelHeight,
@@ -173,20 +200,6 @@ const ImageDecal = ({
       // Clear the pending update
       pendingUpdateRef.current = null;
     }
-
-    if (groupRef.current && materialProps) {
-      // Update group position and rotation directly
-      groupRef.current.position.set(
-        materialProps.position[0],
-        materialProps.position[1],
-        materialProps.position[2]
-      );
-      groupRef.current.rotation.set(
-        materialProps.rotation[0],
-        materialProps.rotation[1],
-        materialProps.rotation[2]
-      );
-    }
   });
 
   // Override keyboard delete handler
@@ -199,15 +212,15 @@ const ImageDecal = ({
       const isEditableTarget = !!(
         active &&
         (active.isContentEditable ||
-          active.getAttribute('role') === 'textbox' ||
-          tag === 'input' ||
-          tag === 'textarea' ||
-          tag === 'select')
+          active.getAttribute("role") === "textbox" ||
+          tag === "input" ||
+          tag === "textarea" ||
+          tag === "select")
       );
 
       if (isEditableTarget) return;
 
-      if (isSelected && (event.key === 'Delete' || event.key === 'Backspace')) {
+      if (isSelected && (event.key === "Delete" || event.key === "Backspace")) {
         event.preventDefault();
         onDelete(id);
       }
@@ -220,66 +233,58 @@ const ImageDecal = ({
   }, [isSelected, id, onDelete]);
 
   return (
-    <>
-      <group
-        ref={groupRef}
-        {...bindProps()}
-        userData={{ store }}
-        onPointerOver={(e: any) => {
-          e.stopPropagation();
-          hoverRef.current = true;
-        }}
-        onPointerOut={() => {
-          hoverRef.current = false;
-        }}
-      >
-        <Root ref={rootRef} overflow="hidden" positionType="relative">
-          <Container ref={imageContainerRef} positionType="absolute">
-            <Image
-              ref={imageRef}
-              aspectRatio={aspectRatio}
-              width="100%"
-              height="100%"
-              positionType="relative"
-              src={url}
-              objectFit="fill"
-            />
-          </Container>
-        </Root>
-      </group>
+    <Container
+      ref={imageContainerRef}
+      marginLeft={materialProps.position[horizontalAxis] * xMultiplier}
+      marginTop={materialProps.position[verticalAxis] * yMultiplier}
+      positionType="absolute"
+      inset="50%"
+      {...(bindProps() as any)}
+      onPointerOver={(e: any) => {
+        e.stopPropagation();
+        hoverRef.current = true;
+      }}
+      onPointerOut={() => {
+        hoverRef.current = false;
+      }}
 
-      {/* Handler group for resize handles */}
-      {isSelected && (
-        <>
-          <HandlerGroup
-            scale={materialProps.scale}
-            position={[
-              materialProps.position[0],
-              materialProps.position[1],
-              materialProps.position[2],
-            ]}
-            rotation={materialProps.rotation}
-            onUpdate={handleUpdate}
-            onHover={(hoverState) => (hoverRef.current = hoverState)}
-            setIsResizing={setIsResizing}
-            normal={normal}
-          />
-          <RotationHandler
-            position={[
-              materialProps.position[0],
-              materialProps.position[1],
-              materialProps.position[2],
-            ]}
-            scale={materialProps.scale}
-            rotation={materialProps.rotation}
-            normal={normal}
-            onUpdate={handleRotationUpdate}
-            onHover={(hoverState) => (hoverRef.current = hoverState)}
-            setIsRotating={setIsRotating}
-          />
-        </>
-      )}
-    </>
+    >
+      <Container
+        positionType="relative"
+        width="100%"
+        height="100%"
+        aspectRatio={aspectRatio}
+      >
+        <Image ref={imageRef} src={url} objectFit="fill" />
+
+        <HandlerGroup
+          scale={materialProps.scale}
+          position={materialProps.position}
+          rotation={materialProps.rotation}
+          normal={normal}
+          aspectRatio={aspectRatio}
+          store={store}
+          positionRight={materialProps.position[horizontalAxis] * xMultiplier}
+          positionTop={materialProps.position[verticalAxis] * yMultiplier}
+          onUpdate={handleUpdate}
+          onHover={(hoverState) => (hoverRef.current = hoverState)}
+          setIsResizing={setIsResizing}
+        />
+        <RotationHandler
+          position={[
+            materialProps.position[0],
+            materialProps.position[1],
+            materialProps.position[2],
+          ]}
+          scale={materialProps.scale}
+          rotation={materialProps.rotation}
+          normal={normal}
+          onUpdate={handleRotationUpdate}
+          onHover={(hoverState) => (hoverRef.current = hoverState)}
+          setIsRotating={setIsRotating}
+        />
+      </Container>
+    </Container>
   );
 };
 

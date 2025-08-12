@@ -1,7 +1,6 @@
-import { useState, useRef, useEffect } from "react";
+import { useRef, useEffect } from "react";
 import { useDrag } from "@use-gesture/react";
 import { useThree, ThreeEvent } from "@react-three/fiber";
-import { useSelect, useCursor } from "@react-three/drei";
 import * as THREE from "three";
 
 interface UseDecalDragProps {
@@ -9,6 +8,7 @@ interface UseDecalDragProps {
   isSelected: boolean;
   center: THREE.Vector3;
   boundingBox: THREE.Box3;
+  normal: THREE.Vector3;
   initialRotation: [number, number, number];
   onDelete: (id: string) => void;
   materialProps: any;
@@ -26,6 +26,7 @@ export const useDecalDrag = ({
   isSelected,
   center,
   boundingBox,
+  normal,
   initialRotation,
   onDelete,
   materialProps,
@@ -53,7 +54,7 @@ export const useDecalDrag = ({
     // Skip if already initialized
     if (hasInitialized.current) return;
 
-    const offset = 0.02;
+    const offset = 0.03;
     let { x, y, z } = center;
 
     const absX = Math.abs(x);
@@ -69,9 +70,9 @@ export const useDecalDrag = ({
     }
 
     onUpdate({
-      rotation: [initialRotation[0], initialRotation[1], initialRotation[2]],
+      rotation: initialRotation,
+      position: [x, y, z],
     });
-    onUpdate({ position: [x, y, z] });
     hasInitialized.current = true;
   }, [center, initialRotation, onUpdate]);
 
@@ -79,86 +80,6 @@ export const useDecalDrag = ({
   const dragPlane = useRef(new THREE.Plane());
   const dragStartPoint = useRef(new THREE.Vector3());
   const dragOffset = useRef(new THREE.Vector3());
-
-  // Helper function to calculate effective dimensions after rotation
-  const getEffectiveDimensions = (
-    scale: [number, number],
-    rotation: [number, number, number]
-  ) => {
-    const [width, height] = scale;
-    const [rx, ry, rz] = rotation;
-
-    // Create a box with the original dimensions
-    const originalBox = new THREE.Box3().setFromCenterAndSize(
-      new THREE.Vector3(0, 0, 0),
-      new THREE.Vector3(width, height, 0)
-    );
-
-    // Apply rotation to the box
-    const rotationMatrix = new THREE.Matrix4().makeRotationFromEuler(
-      new THREE.Euler(rx, ry, rz)
-    );
-
-    // Get the 8 corners of the box
-    const corners = [
-      new THREE.Vector3(
-        originalBox.min.x,
-        originalBox.min.y,
-        originalBox.min.z
-      ),
-      new THREE.Vector3(
-        originalBox.max.x,
-        originalBox.min.y,
-        originalBox.min.z
-      ),
-      new THREE.Vector3(
-        originalBox.min.x,
-        originalBox.max.y,
-        originalBox.min.z
-      ),
-      new THREE.Vector3(
-        originalBox.max.x,
-        originalBox.max.y,
-        originalBox.min.z
-      ),
-      new THREE.Vector3(
-        originalBox.min.x,
-        originalBox.min.y,
-        originalBox.max.z
-      ),
-      new THREE.Vector3(
-        originalBox.max.x,
-        originalBox.min.y,
-        originalBox.max.z
-      ),
-      new THREE.Vector3(
-        originalBox.min.x,
-        originalBox.max.y,
-        originalBox.max.z
-      ),
-      new THREE.Vector3(
-        originalBox.max.x,
-        originalBox.max.y,
-        originalBox.max.z
-      ),
-    ];
-
-    // Transform all corners
-    const transformedCorners = corners.map((corner) =>
-      corner.applyMatrix4(rotationMatrix)
-    );
-
-    // Calculate the new bounding box
-    const rotatedBox = new THREE.Box3().setFromPoints(transformedCorners);
-    const size = new THREE.Vector3();
-    rotatedBox.getSize(size);
-
-    return {
-      halfWidth: size.x / 2,
-      halfHeight: size.y / 2,
-      halfDepth: size.z / 2,
-    };
-  };
 
   const bind = useDrag(
     ({ event, down, first, last, dragging }) => {
@@ -202,8 +123,14 @@ export const useDecalDrag = ({
         return;
       }
 
-      // On every subsequent drag event, raycast onto the plane
+      if (dragging) {
+        setIsMoving?.(true);
 
+        // On every subsequent drag event, raycast onto the plane
+        const size = new THREE.Vector3();
+        boundingBox.getSize(size);
+
+      // On every subsequent drag event, raycast onto the plane
       raycaster.ray.intersectPlane(
         dragPlane.current,
         intersectionPoint.current
@@ -212,59 +139,67 @@ export const useDecalDrag = ({
       // Apply the offset to maintain relative position
       intersectionPoint.current.add(dragOffset.current);
 
-      // Calculate effective dimensions after rotation
-      const currentScale = materialProps.scale || [1, 1];
-      const currentRotation = materialProps.rotation || [0, 0, 0];
-      const { halfWidth, halfHeight, halfDepth } = getEffectiveDimensions(
-        currentScale,
-        currentRotation
+        let newPosition: [number, number, number];
+
+        // The smallest dimension of the bounding box tells us the plane's normal direction.
+        if (size.z < size.x && size.z < size.y) {
+          // XY plane is dominant (normal along Z)
+          const minX = (size.x / 2) * -1;
+          const maxX = size.x / 2;
+          const minY = (size.y / 2) * -1;
+          const maxY = size.y / 2;
+
+          // Clamp the intersection point so that the decal never leaves the bounds
+          const clampedX = Math.min(
+            Math.max(intersectionPoint.current.x, minX),
+            maxX
+          );
+          const clampedY = Math.min(
+            Math.max(intersectionPoint.current.y, minY),
+            maxY
+          );
+          newPosition = [clampedX, clampedY, materialProps.position[2]];
+        } else if (size.y < size.x && size.y < size.z) {
+          // XZ plane is dominant (normal along Y)
+          const minX = (size.x / 2) * -1;
+          const maxX = size.x / 2;
+          const minZ = (size.z / 2) * -1;
+          const maxZ = size.z / 2;
+
+          // Clamp the intersection point so that the decal never leaves the bounds
+          const clampedX = Math.min(
+            Math.max(intersectionPoint.current.x, minX),
+            maxX
+          );
+          const clampedZ = Math.min(
+            Math.max(intersectionPoint.current.z, minZ),
+            maxZ
+          );
+          newPosition = [clampedX, materialProps.position[1], clampedZ];
+        } else {
+          // YZ plane is dominant (normal along X)
+          const minY = (size.y / 2) * -1;
+          const maxY = size.y / 2;
+          const minZ = (size.z / 2) * -1;
+          const maxZ = size.z / 2;
+
+          // Clamp the intersection point so that the decal never leaves the bounds
+          const clampedY = Math.min(
+            Math.max(intersectionPoint.current.y, minY),
+            maxY
       );
+          const clampedZ = Math.min(
+            Math.max(intersectionPoint.current.z, minZ),
+            maxZ
+          );
+          newPosition = [materialProps.position[0], clampedY, clampedZ];
+        }
 
-      // Clamp the position to stay within parent geometry bounds
-      // considering the decal's effective dimensions after rotation
-      const size = new THREE.Vector3();
-      boundingBox.getSize(size);
-
-      let newPosition: [number, number, number];
-
-      // The smallest dimension of the bounding box tells us the plane's normal direction.
-      if (size.z < size.x && size.z < size.y) {
-        // XY plane is dominant (normal along Z)
-        const clampedX = Math.max(
-          boundingBox.min.x + halfWidth,
-          Math.min(boundingBox.max.x - halfWidth, intersectionPoint.current.x)
-        );
-        const clampedY = Math.max(
-          boundingBox.min.y + halfHeight,
-          Math.min(boundingBox.max.y - halfHeight, intersectionPoint.current.y)
-        );
-        newPosition = [clampedX, clampedY, materialProps.position[2]];
-      } else if (size.y < size.x && size.y < size.z) {
-        // XZ plane is dominant (normal along Y)
-        const clampedX = Math.max(
-          boundingBox.min.x + halfWidth,
-          Math.min(boundingBox.max.x - halfWidth, intersectionPoint.current.x)
-        );
-        const clampedZ = Math.max(
-          boundingBox.min.z + halfDepth,
-          Math.min(boundingBox.max.z - halfDepth, intersectionPoint.current.z)
-        );
-        newPosition = [clampedX, materialProps.position[1], clampedZ];
+        onUpdate({ position: newPosition });
       } else {
-        // YZ plane is dominant (normal along X)
-        const clampedY = Math.max(
-          boundingBox.min.y + halfHeight,
-          Math.min(boundingBox.max.y - halfHeight, intersectionPoint.current.y)
-        );
-        const clampedZ = Math.max(
-          boundingBox.min.z + halfDepth,
-          Math.min(boundingBox.max.z - halfDepth, intersectionPoint.current.z)
-        );
-        newPosition = [materialProps.position[0], clampedY, clampedZ];
+        setIsMoving?.(false);
+        onPointerDown?.();
       }
-
-      // Update state via onUpdate callback
-      onUpdate({ position: newPosition });
     },
     {
       // We need to use pointer events to get intersection data from R3F
