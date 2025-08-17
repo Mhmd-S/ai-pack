@@ -1,11 +1,11 @@
 import React, { useRef, useCallback, useState, useEffect } from "react";
 import { useDrag } from "@use-gesture/react";
 import * as THREE from "three";
-import { useThree } from "@react-three/fiber";
 import { useCursor } from "@react-three/drei";
 import { Container } from "@react-three/uikit";
 
 interface HandlerProps {
+  visibility: "visible" | "hidden";
   position: [number, number];
   cursor: string;
   normal: THREE.Vector3;
@@ -21,6 +21,7 @@ interface HandlerProps {
  * into a world-space movement vector and report it to its parent.
  */
 const Handler = ({
+  visibility,
   position,
   cursor,
   normal,
@@ -29,14 +30,7 @@ const Handler = ({
   onDragEnd,
   onHover,
 }: HandlerProps) => {
-  const { camera, raycaster } = useThree();
-
   useCursor(true, cursor);
-
-  const dragState = useRef({
-    plane: new THREE.Plane(),
-    initialPoint: new THREE.Vector3(),
-  }).current;
 
   const handlePointerOver = useCallback(
     (e: any) => {
@@ -55,56 +49,22 @@ const Handler = ({
   }, [onHover, cursor]);
 
   const bind = useDrag((state) => {
-    const {
-      active,
-      first,
-      last,
-      xy: [px, py],
-      event,
-    } = state;
+    const { active, first, last, event, movement } = state;
 
     event.stopPropagation();
 
     if (first) {
       onDragStart();
-      dragState.plane.setFromNormalAndCoplanarPoint(
-        camera.getWorldDirection(new THREE.Vector3()),
-        position
-      );
-      raycaster.ray.intersectPlane(dragState.plane, dragState.initialPoint);
     }
 
     if (active) {
-      const currentPoint = new THREE.Vector3();
-
-      if (raycaster.ray.intersectPlane(dragState.plane, currentPoint)) {
-        // Calculate the 3D movement vector
-        const movement3D = new THREE.Vector3()
-          .copy(currentPoint)
-          .sub(dragState.initialPoint);
-
-        // Create a local coordinate system for the face using the normal
-        // We need two orthogonal vectors in the plane perpendicular to the normal
-        const up = new THREE.Vector3(0, 1, 0);
-        const right = new THREE.Vector3().crossVectors(up, normal).normalize();
-        
-        // If right vector is zero (normal is parallel to up), use a different reference
-        if (right.length() < 0.001) {
-          const forward = new THREE.Vector3(0, 0, 1);
-          right.crossVectors(forward, normal).normalize();
-        }
-        
-        // Calculate the actual up vector perpendicular to both normal and right
-        const localUp = new THREE.Vector3().crossVectors(normal, right).normalize();
-
-        // Project the 3D movement onto the face's local 2D coordinate system
-        const movement = new THREE.Vector2(
-          movement3D.dot(right),    // Movement along the right axis (local X)
-          movement3D.dot(localUp)   // Movement along the up axis (local Y)
-        );
-        
-        onDrag(movement);
-      }
+      // Use standard x/y movement in pixels and convert to local units
+      const scaleFactor = 2000; // 200px == 1 local unit (less sensitive)
+      const mv = new THREE.Vector2(
+        movement[0] / scaleFactor,
+        movement[1] / scaleFactor
+      );
+      onDrag(mv);
     }
 
     if (last) {
@@ -115,14 +75,15 @@ const Handler = ({
 
   return (
     <Container
-      positionLeft={`${position[0] * 100}%`}
-      positionTop={`${position[1] * 100}%`}
-      width={1}
-      height={1}
+      visibility={visibility}
+      positionLeft={`${(position[0]-0.025) * 100}%`}
+      positionTop={`${(position[1]-0.065) * 100}%`}
+      width={1.5}
+      height={1.5}
       positionType="absolute"
       backgroundColor="red"
       borderRadius={100}
-      {...bind()}
+      {...(bind() as any)}
       onPointerOver={handlePointerOver}
       onPointerOut={handlePointerOut}
 

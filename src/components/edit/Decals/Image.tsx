@@ -114,7 +114,10 @@ const ImageDecal = ({
   useEffect(() => {
     if (imageRef.current && imageContainerRef.current) {
       // Set up userData
-      imageContainerRef.current.interactionPanel.userData = { store, isDecal: true };
+      imageContainerRef.current.interactionPanel.userData = {
+        store,
+        isDecal: true,
+      };
 
       // Calculate dimensions based on aspect ratio
       const defaultWidth = 1; // 1 unit in 3D space
@@ -247,43 +250,31 @@ const ImageDecal = ({
       onPointerOut={() => {
         hoverRef.current = false;
       }}
-
     >
-      <Container
-        positionType="relative"
-        width="100%"
-        height="100%"
-        aspectRatio={aspectRatio}
-      >
-        <Image ref={imageRef} src={url} objectFit="fill" />
+      <Image ref={imageRef} src={url} objectFit="fill" />
 
-        <HandlerGroup
-          scale={materialProps.scale}
-          position={materialProps.position}
-          rotation={materialProps.rotation}
-          normal={normal}
-          aspectRatio={aspectRatio}
-          store={store}
-          positionRight={materialProps.position[horizontalAxis] * xMultiplier}
-          positionTop={materialProps.position[verticalAxis] * yMultiplier}
-          onUpdate={handleUpdate}
-          onHover={(hoverState) => (hoverRef.current = hoverState)}
-          setIsResizing={setIsResizing}
-        />
-        <RotationHandler
-          position={[
-            materialProps.position[0],
-            materialProps.position[1],
-            materialProps.position[2],
-          ]}
-          scale={materialProps.scale}
-          rotation={materialProps.rotation}
-          normal={normal}
-          onUpdate={handleRotationUpdate}
-          onHover={(hoverState) => (hoverRef.current = hoverState)}
-          setIsRotating={setIsRotating}
-        />
-      </Container>
+      <HandlerGroup
+        visibility={isSelected ? "visible" : "hidden"}
+        scale={materialProps.scale}
+        position={materialProps.position}
+        rotation={materialProps.rotation}
+        aspectRatio={aspectRatio}
+        normal={normal}
+        store={store}
+        onUpdate={handleUpdate}
+        onHover={(hoverState) => (hoverRef.current = hoverState)}
+        setIsResizing={setIsResizing}
+      />
+      <RotationHandler
+        visibility={isSelected ? "visible" : "hidden"}
+        position={materialProps.position}
+        scale={materialProps.scale}
+        rotation={materialProps.rotation}
+        normal={normal}
+        onUpdate={handleRotationUpdate}
+        onHover={(hoverState) => (hoverRef.current = hoverState)}
+        setIsRotating={setIsRotating}
+      />
     </Container>
   );
 };

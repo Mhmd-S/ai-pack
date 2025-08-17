@@ -1,6 +1,7 @@
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import Handler from "./Handler";
+import { Container } from "@react-three/uikit";
 
 interface HandlerConfig {
   id: string;
@@ -10,6 +11,7 @@ interface HandlerConfig {
 }
 
 interface TextHandlerGroupProps {
+  visibility: "visible" | "hidden";
   position: [number, number, number];
   scale: [number, number];
   rotation: [number, number, number];
@@ -25,48 +27,50 @@ interface TextHandlerGroupProps {
     resizeType: "corner" | "edge-x" | "edge-y" | null
   ) => void;
   currentSize: number;
+  store: any;
 }
 
 const handlers: HandlerConfig[] = [
   {
     id: "top-left",
-    normalizedPosition: [-0.5, 0.5],
+    normalizedPosition: [0, 0],
     type: "corner",
     cursor: "nwse-resize",
   },
   {
     id: "top-right",
-    normalizedPosition: [0.5, 0.5],
+    normalizedPosition: [1, 0],
     type: "corner",
     cursor: "nesw-resize",
   },
   {
     id: "bottom-left",
-    normalizedPosition: [-0.5, -0.5],
+    normalizedPosition: [0, 1],
     type: "corner",
     cursor: "nesw-resize",
   },
   {
     id: "bottom-right",
-    normalizedPosition: [0.5, -0.5],
+    normalizedPosition: [1, 1],
     type: "corner",
     cursor: "nwse-resize",
   },
   {
     id: "left",
-    normalizedPosition: [-0.5, 0],
+    normalizedPosition: [0, 0.5],
     type: "edge-x",
     cursor: "ew-resize",
   },
   {
     id: "right",
-    normalizedPosition: [0.5, 0],
+    normalizedPosition: [1, 0.5],
     type: "edge-x",
     cursor: "ew-resize",
   },
 ];
 
 const TextHandlerGroup = ({
+  visibility,
   position,
   scale,
   rotation,
@@ -75,184 +79,141 @@ const TextHandlerGroup = ({
   onHover,
   setIsResizing,
   currentSize,
+  store,
 }: TextHandlerGroupProps) => {
   const dragInfo = useRef({
-    pivotPoint: new THREE.Vector3(),
     initialPosition: new THREE.Vector3(),
     initialScale: new THREE.Vector2(),
-    initialHandlePosition: new THREE.Vector3(),
     initialSize: 0,
+    handlerId: "",
+    signX: 1 as 1 | -1,
+    signY: 1 as 1 | -1,
+    pivotSignX: 1 as 1 | -1,
+    pivotSignY: 1 as 1 | -1,
+    pivotWorld: new THREE.Vector3(),
   }).current;
 
-  // This function is now for LOCAL space calculation
-  const getPointInLocalSpace = (
-    normalizedPos: [number, number],
-    currentScale: [number, number]
-  ): THREE.Vector3 =>
-    new THREE.Vector3(
-      currentScale[0] * normalizedPos[0],
-      currentScale[1] * normalizedPos[1],
-      0
-    );
+  const containerRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (containerRef.current) {
+      containerRef.current.interactionPanel.userData = { store, isDecal: true };
+    }
+  }, []);
+
+  const getHandleSigns = (handlerId: string): { sx: 1 | -1; sy: 1 | -1 } => {
+    switch (handlerId) {
+      case "top-left":
+        return { sx: -1, sy: 1 };
+      case "top-right":
+        return { sx: 1, sy: 1 };
+      case "bottom-left":
+        return { sx: -1, sy: -1 };
+      case "bottom-right":
+      default:
+        return { sx: 1, sy: -1 };
+    }
+  };
+
+  const getPivotSigns = (handlerId: string): { psx: 1 | -1; psy: 1 | -1 } => {
+    switch (handlerId) {
+      case "top-left":
+        return { psx: 1, psy: -1 }; // pivot is bottom-right
+      case "top-right":
+        return { psx: -1, psy: -1 }; // pivot is bottom-left
+      case "bottom-left":
+        return { psx: 1, psy: 1 }; // pivot is top-right
+      case "bottom-right":
+      default:
+        return { psx: -1, psy: 1 }; // pivot is top-left
+    }
+  };
 
   const handleDragStart = (handler: HandlerConfig) => {
     setIsResizing(true, handler.type);
 
-    // The pivot point is opposite the handle, in LOCAL space
-    const pivotNormalizedPos: [number, number] = [
-      -handler.normalizedPosition[0],
-      -handler.normalizedPosition[1],
-    ];
-
     dragInfo.initialPosition.set(...position);
     dragInfo.initialScale.set(...scale);
     dragInfo.initialSize = currentSize;
+    dragInfo.handlerId = handler.id;
 
-    // CHANGED: All calculations are now done in the object's local space first
-    dragInfo.pivotPoint = getPointInLocalSpace(pivotNormalizedPos, scale);
-    dragInfo.initialHandlePosition = getPointInLocalSpace(
-      handler.normalizedPosition,
-      scale
+    const { sx, sy } = getHandleSigns(handler.id);
+    dragInfo.signX = sx;
+    dragInfo.signY = sy;
+
+    const { psx, psy } = getPivotSigns(handler.id);
+    dragInfo.pivotSignX = psx;
+    dragInfo.pivotSignY = psy;
+
+    // Compute and store the pivot world position (opposite corner fixed)
+    const halfW0 = dragInfo.initialScale.x / 2;
+    const halfH0 = dragInfo.initialScale.y / 2;
+    dragInfo.pivotWorld.set(
+      dragInfo.initialPosition.x + psx * halfW0,
+      dragInfo.initialPosition.y + psy * halfH0,
+      dragInfo.initialPosition.z
     );
+    console.log("dragInfo Text", dragInfo);
   };
 
   const handleDrag = (handler: HandlerConfig, movement: THREE.Vector2) => {
-    const {
-      pivotPoint,
-      initialHandlePosition,
-      initialScale,
-      initialPosition,
-      initialSize,
-    } = dragInfo;
+    const { initialScale, initialPosition, initialSize, signX, signY, pivotSignX, pivotSignY, pivotWorld } = dragInfo;
 
-    // Check if any rotation is approximately π (3.14)
-    const isNearPi = (value: number) =>
-      Math.abs(Math.abs(value) - Math.PI) < 0.1;
-    const hasNearPiRotation =
-      isNearPi(rotation[0]) || isNearPi(rotation[1]) || isNearPi(rotation[2]);
-
-    let localMovement: THREE.Vector3;
-
-    // Sometimes the faces are rotated 180 degrees due to how the model was designed, so we need to invert the movement
-    if (hasNearPiRotation) {
-      // Create movement vector with inverted axes for rotations near π
-      const invertedMovement = new THREE.Vector3(
-        isNearPi(rotation[0]) ? movement.x : -movement.x,
-        isNearPi(rotation[1]) ? movement.y : -movement.y,
-        isNearPi(rotation[2]) ? -0 : 0
-      );
-
-      // Apply rotation matrix
-      localMovement = invertedMovement.applyMatrix4(
-        new THREE.Matrix4()
-          .makeRotationFromEuler(
-            new THREE.Euler(rotation[0], rotation[1], rotation[2])
-          )
-          .invert()
-      );
-    } else {
-      // Don't apply rotation matrix
-      localMovement = new THREE.Vector3(movement.x, movement.y, 0);
-    }
-
-    const currentHandlePosition = new THREE.Vector3()
-      .copy(initialHandlePosition)
-      .add(localMovement);
-
-    const newWidth = Math.abs(currentHandlePosition.x - pivotPoint.x);
-    const newHeight = Math.abs(currentHandlePosition.y - pivotPoint.y);
-
-    let newScale: [number, number] | undefined;
-    let newSize: number | undefined;
-    let centerOffset = new THREE.Vector3();
-
+    // For corner handlers: use same math as HandlerGroup (fixed opposite pivot)
     if (handler.type === "corner") {
-      // For corner handlers: change font size based on diagonal movement
-      const diagonalDistance = Math.sqrt(
-        newWidth * newWidth + newHeight * newHeight
-      );
-      const initialDiagonal = Math.sqrt(
-        initialScale.x * initialScale.x + initialScale.y * initialScale.y
-      );
+      const halfWidth0 = initialScale.x / 2;
+      const halfHeight0 = initialScale.y / 2;
 
-      const sizeMultiplier = diagonalDistance / initialDiagonal;
-      newSize = Math.max(9, initialSize * sizeMultiplier);
+      const deltaHalfWidth = movement.x * signX;
+      const deltaHalfHeight = -movement.y * signY; // invert Y from screen to local up
 
-      // Calculate the effective scale change due to font size change
-      const fontSizeRatio = newSize / initialSize;
+      let halfWidthCandidate = Math.max(0.005, halfWidth0 + deltaHalfWidth);
+      let halfHeightCandidate = Math.max(0.005, halfHeight0 + deltaHalfHeight);
 
-      // Calculate expected new scale synchronously
-      // The scale should change proportionally to font size for corner resizing
+      // Preserve original aspect ratio like HandlerGroup
       const aspectRatio = initialScale.x / initialScale.y;
-      const newScaleY = initialScale.y * fontSizeRatio;
-      const newScaleX = newScaleY * aspectRatio;
-      newScale = [newScaleX, newScaleY];
-
-      // Adjust position calculation to use the new scale instead of font size ratio
-      const pivotNormalizedPos: [number, number] = [
-        -handler.normalizedPosition[0],
-        -handler.normalizedPosition[1],
-      ];
-
-      const initialPivotOffset = new THREE.Vector3(
-        initialScale.x * pivotNormalizedPos[0],
-        initialScale.y * pivotNormalizedPos[1],
-        0
-      );
-
-      const newPivotOffset = new THREE.Vector3(
-        newScaleX * pivotNormalizedPos[0],
-        newScaleY * pivotNormalizedPos[1],
-        0
-      );
-
-      centerOffset = new THREE.Vector3().subVectors(
-        initialPivotOffset,
-        newPivotOffset
-      );
-    } else if (handler.type === "edge-x") {
-      // For horizontal edge handlers: change scale X only
-      newScale = [newWidth, initialScale.y];
-      centerOffset.set(
-        (currentHandlePosition.x + pivotPoint.x) / 2,
-        0, // Y position doesn't change relative to center
-        0
-      );
-    }
-
-    // CHANGED: Rotate the local center offset back into world space and add to initial position
-    const rotationMatrix = new THREE.Matrix4().makeRotationFromEuler(
-      new THREE.Euler(rotation[0], rotation[1], rotation[2])
-    );
-    const worldCenterOffset = centerOffset.applyMatrix4(rotationMatrix);
-
-    const newPositionVec = new THREE.Vector3(...initialPosition).add(
-      worldCenterOffset
-    );
-
-    const newPosition: [number, number, number] = [
-      newPositionVec.x,
-      newPositionVec.y,
-      newPositionVec.z,
-    ];
-
-    // Update with appropriate properties
-    const updateProps: any = { position: newPosition };
-
-    if (newScale) {
-      if (handler.type === "corner") {
-        // For corner resizing, update both size and scale synchronously
-        updateProps.scale = [
-          Math.max(0.01, newScale[0]),
-          Math.max(0.01, newScale[1]),
-        ];
-        updateProps.size = newSize;
-      } else if (handler.type === "edge-x") {
-        updateProps.scale = [Math.max(0.01, newScale[0]), scale[1]];
+      if (halfWidthCandidate / halfHeightCandidate > aspectRatio) {
+        halfHeightCandidate = halfWidthCandidate / aspectRatio;
+      } else {
+        halfWidthCandidate = halfHeightCandidate * aspectRatio;
       }
+
+      const newWidth = Math.max(0.01, halfWidthCandidate * 2);
+      const newHeight = Math.max(0.01, halfHeightCandidate * 2);
+
+      // Recompute center from fixed pivot
+      const newCenterX = pivotWorld.x - pivotSignX * halfWidthCandidate;
+      const newCenterY = pivotWorld.y - pivotSignY * halfHeightCandidate;
+
+      // Compute new font size proportionally to height change
+      const sizeRatio = newHeight / initialScale.y;
+      const newSize = Math.max(9, initialSize * sizeRatio);
+
+      const updateProps: any = {
+        position: [newCenterX, newCenterY, pivotWorld.z] as [number, number, number],
+        scale: [newWidth, newHeight] as [number, number],
+        size: newSize,
+      };
+
+      onUpdate(updateProps);
+      return;
     }
 
-    onUpdate(updateProps);
+    // Edge handlers: keep previous behavior (horizontal only)
+    if (handler.type === "edge-x") {
+      const halfWidth0 = initialScale.x / 2;
+      const deltaHalfWidth = movement.x; // movement already signed by which edge is dragged visually
+      const halfWidthCandidate = Math.max(0.005, halfWidth0 + deltaHalfWidth);
+      const newWidth = Math.max(0.01, halfWidthCandidate * 2);
+
+      // Keep Y center the same, adjust X around current center
+      const updateProps: any = {
+        position: [initialPosition.x, initialPosition.y, initialPosition.z] as [number, number, number],
+        scale: [newWidth, initialScale.y] as [number, number],
+      };
+      onUpdate(updateProps);
+      return;
+    }
   };
 
   const handleDragEnd = () => {
@@ -260,29 +221,38 @@ const TextHandlerGroup = ({
   };
 
   return (
-    <group
-      position={new THREE.Vector3(position[0], position[1], position[2])}
-      rotation={new THREE.Euler(rotation[0], rotation[1], rotation[2])}
-    >
-      {handlers.map((handler) => {
-        // Determine visual scale for edge handlers to make them look like bars
-        const visualScale: [number, number, number] = [1, 1, 1];
-        if (handler.type === "edge-x") visualScale[1] = 2.5;
-
-        return (
-          <Handler
-            key={handler.id}
-            position={getPointInLocalSpace(handler.normalizedPosition, scale)}
-            cursor={handler.cursor}
-            normal={normal}
-            onHover={onHover}
-            onDragStart={() => handleDragStart(handler)}
-            onDrag={(movement) => handleDrag(handler, movement)}
-            onDragEnd={handleDragEnd}
-          />
-        );
-      })}
-    </group>
+    <Container
+      width={scale[0] * 100}
+      height={scale[1] * 100}
+      positionType="absolute"
+      transformTranslateX="-50%"
+      transformTranslateY="-50%"
+      zIndexOffset={{ major: 1 }}
+      >
+      <Container
+        positionType="relative"
+        width="100%"
+        height="100%"
+        overflow="visible"
+        ref={containerRef}
+      >
+        {handlers.map((handler) => {
+          return (
+            <Handler
+              visibility={visibility}
+              key={handler.id}
+              normal={normal}
+              position={handler.normalizedPosition}
+              cursor={handler.cursor}
+              onHover={onHover}
+              onDragStart={() => handleDragStart(handler)}
+              onDrag={(movement) => handleDrag(handler, movement)}
+              onDragEnd={handleDragEnd}
+            />
+          );
+        })}
+      </Container>
+    </Container>
   );
 };
 

@@ -58,7 +58,6 @@ const TextBox = ({
   const textRef = useRef<ComponentRef<typeof Text>>(null);
   const containerRef = useRef<ComponentRef<typeof Container>>(null);
   const clickedInsideRef = useRef(false);
-  const rootRef = useRef<ComponentRef<typeof Root>>(null);
 
   const { fontProps } = useFonts();
 
@@ -278,14 +277,26 @@ const TextBox = ({
     setText(value);
   };
 
-  // Helper functions to determine props based on state
-  const getGroupProps = () => {
+  const getContainerProps = () => {
+    const borderColor = isHovered || isSelected ? "red" : color;
+    const borderWidth = isSelected ? 0.2 : 0;
+
     const baseProps = {
+      ref: containerRef,
+      width: scale[0] * 100,
+      height: "auto" as const,
+      flexDirection: "column" as const,
+      alignItems: "center" as const,
+      positionType: "absolute" as const,
+      justifyContent: "flex-start" as const,
+      transformTranslateX: "-50%",
+      transformTranslateY: "-50%",
+      borderColor,
+      borderWidth,
       position,
       rotation: new THREE.Euler(rotation[0], rotation[1], rotation[2]),
       onPointerOver,
       onPointerOut,
-      userData: { store, isDecal: true },
     };
 
     if (isSelected && !isEditing) {
@@ -313,36 +324,6 @@ const TextBox = ({
     return baseProps;
   };
 
-  const getRootProps = () => {
-    const rootWidth = scale[0];
-
-    return {
-      pixelSize: 0.002,
-      sizeX: rootWidth,
-      flexDirection: "column" as const,
-      alignItems: "center" as const,
-      justifyContent: "flex-start" as const,
-    };
-  };
-
-  const getContainerProps = () => {
-    const borderColor = isHovered || isSelected ? "red" : color;
-    const borderWidth = isSelected ? 0.4 : 0;
-
-    return {
-      ref: containerRef,
-      width: "100%" as const,
-      height: "auto" as const,
-      minWidth: 1,
-      minHeight: 1,
-      flexDirection: "column" as const,
-      alignItems: "center" as const,
-      justifyContent: "flex-start" as const,
-      borderColor,
-      borderWidth,
-    };
-  };
-
   const getInputProps = () => {
     const displayColor = color;
 
@@ -350,7 +331,7 @@ const TextBox = ({
       value: text,
       onValueChange: handleInputChange,
       multiline: true,
-      fontSize: size,
+      fontSize: size / 0.002,
       color: displayColor,
       fontFamily: finalFontFamily,
       fontWeight: finalFontWeight,
@@ -364,7 +345,7 @@ const TextBox = ({
   };
 
   const getTextProps = () => {
-    const pixelSize = size;
+    const pixelSize = size / 6;
     const displayColor = color;
 
     // Use alignText for selected non-editing, center for others
@@ -384,24 +365,18 @@ const TextBox = ({
     };
   };
 
-  const groupProps = getGroupProps();
-  const rootProps = getRootProps();
   const containerProps = getContainerProps();
 
   return (
-    <group {...groupProps}>
-      <Root ref={rootRef} {...rootProps}>
-        <Container {...containerProps}>
-          <FontFamilyProvider {...fontProps}>
-            {isEditing && isSelected ? (
-              <Input ref={inputRef} {...getInputProps()} />
-            ) : (
-              <Text {...getTextProps()}>{text}</Text>
-            )}
-          </FontFamilyProvider>
-        </Container>
-      </Root>
-    </group>
+    <Container {...containerProps}>
+      <FontFamilyProvider {...fontProps}>
+        {isEditing && isSelected ? (
+          <Input ref={inputRef} {...getInputProps()} />
+        ) : (
+          <Text {...getTextProps()}>{text}</Text>
+        )}
+      </FontFamilyProvider>
+    </Container>
   );
 };
 

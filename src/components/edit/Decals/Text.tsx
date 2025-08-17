@@ -3,12 +3,13 @@ import RotationHandler from "../Handler/RotationHandler";
 
 import TextBox from "@/components/edit/Decals/TextBox";
 import * as THREE from "three";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import TextHandlerGroup from "../Handler/TextHandlerGroup";
 import { button } from "leva";
 import { useSelect } from "@react-three/drei";
 import { useControlsDecals } from "@/components/edit/MultiLeva";
 import { useFonts, WEIGHTS } from "@/hooks/use-fonts";
+import { Container } from "@react-three/uikit";
 
 interface TextDecalProps {
   id: string;
@@ -43,6 +44,9 @@ const TextDecal = ({
   >({});
 
   const { getAvailableFamilies } = useFonts();
+
+  const hoverRef = useRef(false);
+  const textContainerRef = useRef<any>(null);
 
   // Create font options for Leva - convert kebab-case to title case for display
   const fontOptions = getAvailableFamilies().reduce(
@@ -83,7 +87,7 @@ const TextDecal = ({
       value: [0.2, 0.04],
     },
     size: {
-      value: 20,
+      value: 16,
     },
     color: {
       value: "#000000",
@@ -108,7 +112,7 @@ const TextDecal = ({
       value: "center",
       options: ["left", "center", "right"],
     },
-    rotation: { value: initialRotation, render: () => false },
+    rotation: { value: initialRotation },
     delete: button((get) => {
       onDelete(id);
     }),
@@ -120,10 +124,44 @@ const TextDecal = ({
   const [store, materialProps, set] = useControlsDecals(
     selectedUserDataStores,
     levaConfig,
-    ["position", "scale", "rotation"] as any // Hide scale and rotation controls
   ) as [any, any, (props: any) => void];
 
   const isSelected = !!selectedUserDataStores.find((s) => s === store);
+
+  // Determine the dominant plane of the face (mirror Image.tsx logic)
+  const { horizontalAxis, verticalAxis, xMultiplier, yMultiplier } =
+    useMemo(() => {
+      const size = new THREE.Vector3();
+      boundingBox.getSize(size);
+
+      if (size.z < size.x && size.z < size.y) {
+        return {
+          horizontalAxis: 0,
+          verticalAxis: 1,
+          xMultiplier: Math.cos(initialRotation[1]) > 0 ? 100 : -100,
+          yMultiplier: Math.cos(initialRotation[2]) > 0 ? -100 : 100,
+        } as const; // X, Y
+      }
+
+      if (size.y < size.x && size.y < size.z) {
+        return {
+          horizontalAxis: 0,
+          verticalAxis: 2,
+          xMultiplier: Math.cos(initialRotation[0]) > 0 ? 100 : -100,
+          yMultiplier: Math.cos(initialRotation[1]) > 0 ? 100 : -100,
+        } as const; // X, Z
+      }
+
+      return {
+        horizontalAxis: 2,
+        verticalAxis: 1,
+        xMultiplier:
+          Math.cos(initialRotation[1]) * Math.sign(initialRotation[1]) * -1 > 0
+            ? 100
+            : -100,
+        yMultiplier: Math.cos(initialRotation[2]) > 0 ? -100 : 100,
+      } as const; // Z, Y
+    }, []);
 
   const toggleEditing = async () => {
     if (isResizing || isRotating || !isSelected) return;
@@ -132,17 +170,16 @@ const TextDecal = ({
     setIsEditing(!isEditing);
   };
 
-  const { bind, handleRotationUpdate } = useDecalDrag({
+  const { bind } = useDecalDrag({
     id,
-    center,
+    center: new THREE.Vector3(0, 0, 0),
     boundingBox,
     initialRotation,
+    normal,
     isSelected,
     onDelete,
     materialProps,
-    disableDrag: isEditing,
     onUpdate: (props: any) => set(props),
-    onPointerDown: toggleEditing,
     disableKeyboardDelete: true,
     isResizing,
     isRotating,
@@ -172,6 +209,16 @@ const TextDecal = ({
       setIsEditing(false);
     }
   }, [isMoving, isEditing]);
+
+  // Mirror Image.tsx: attach userData to the container interaction panel for selection
+  useEffect(() => {
+    if (textContainerRef.current) {
+      textContainerRef.current.interactionPanel.userData = {
+        store,
+        isDecal: true,
+      };
+    }
+  }, [textContainerRef.current, store]);
 
   // Override keyboard delete to not work while editing
   useEffect(() => {
@@ -210,18 +257,39 @@ const TextDecal = ({
   // Create the combined font key from family and weight
   const combinedFontKey = `${materialProps["font family"]}-${materialProps["font weight"]}`;
 
+  // Only bind drag handlers at the container level (mirror Image.tsx behavior)
+  const bindProps = () => {
+    if (isSelected) {
+      return { ...bind() };
+    }
+    return {};
+  };
+
+  // Provide a no-op binder to TextBox to avoid duplicate bindings
+  const noopBind = () => ({}) as any;
+
   return (
-    <>
-      {/* Visual representation mesh */}
-      {/* A interactable interface for the user, the decal itself is too rigid to control directly */}
-      {/* The actual editable text */}
+    <Container
+      ref={textContainerRef}
+      marginLeft={materialProps.position[horizontalAxis] * xMultiplier}
+      marginTop={materialProps.position[verticalAxis] * yMultiplier}
+      transformRotateZ={materialProps.rotation[2]*100}
+      positionType="absolute"
+      inset="50%"
+      {...(bindProps() as any)}
+      onPointerOver={(e: any) => {
+        e.stopPropagation();
+        setHover(true);
+        hoverRef.current = true;
+      }}
+      onPointerOut={() => {
+        setHover(false);
+        hoverRef.current = false;
+      }}
+    >
       <TextBox
-        bind={bind}
-        position={[
-          materialProps.position[0],
-          materialProps.position[1],
-          materialProps.position[2],
-        ]}
+        bind={noopBind}
+        position={materialProps.position}
         store={store}
         setIsEditing={setIsEditing}
         rotation={materialProps.rotation}
@@ -240,43 +308,46 @@ const TextDecal = ({
         onPointerOver={(e: any) => {
           e.stopPropagation();
           setHover(true);
+          hoverRef.current = true;
         }}
-        onPointerOut={() => setHover(false)}
+        onPointerOut={() => {
+          setHover(false);
+          hoverRef.current = false;
+        }}
       />
 
-      {/* Handler group for resize handles */}
-      {isSelected && !isEditing && (
-        <>
-          <TextHandlerGroup
-            scale={materialProps.scale}
-            position={[
-              materialProps.position[0],
-              materialProps.position[1],
-              materialProps.position[2],
-            ]}
-            rotation={materialProps.rotation}
-            onUpdate={handleTextUpdate}
-            onHover={setHover}
-            setIsResizing={setIsResizingWithType}
-            normal={normal}
-            currentSize={materialProps.size}
-          />
-          <RotationHandler
-            position={[
-              materialProps.position[0],
-              materialProps.position[1],
-              materialProps.position[2],
-            ]}
-            scale={materialProps.scale}
-            rotation={materialProps.rotation}
-            normal={normal}
-            onUpdate={handleRotationUpdate}
-            onHover={setHover}
-            setIsRotating={setIsRotating}
-          />
-        </>
-      )}
-    </>
+      <TextHandlerGroup
+        visibility={isSelected ? "visible" : "hidden"}
+        scale={[materialProps.scale[0], materialProps.scale[1]]}
+        position={materialProps.position}
+        rotation={materialProps.rotation}
+        onUpdate={handleTextUpdate}
+        onHover={(hoverState) => {
+          setHover(hoverState);
+          hoverRef.current = hoverState;
+        }}
+        setIsResizing={setIsResizingWithType}
+        normal={normal}
+        currentSize={materialProps.size}
+        store={store}
+      />
+      <RotationHandler
+        visibility={isSelected ? "visible" : "hidden"}
+        position={materialProps.position}
+        scale={[materialProps.scale[0], materialProps.scale[1]]}
+        rotation={materialProps.rotation}
+        normal={normal}
+        boundingBox={boundingBox}
+        onUpdate={(rotation) => {
+          set({ rotation: rotation as [number, number, number] });
+        }}
+        onHover={(hoverState) => {
+          setHover(hoverState);
+          hoverRef.current = hoverState;
+        }}
+        setIsRotating={setIsRotating}
+      />
+    </Container>
   );
 };
 
